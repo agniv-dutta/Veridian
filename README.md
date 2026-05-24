@@ -1,13 +1,13 @@
-# Veridian Backend
-[![Django](https://img.shields.io/badge/Django-5.1-092E20?logo=django&logoColor=white)](https://www.djangoproject.com/) [![DRF](https://img.shields.io/badge/DRF-3.15-ff1709?logo=django&logoColor=white)](https://www.django-rest-framework.org/) [![JWT](https://img.shields.io/badge/JWT-SimpleJWT-000000)](https://github.com/jazzband/djangorestframework-simplejwt) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-ready-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/) [![Celery](https://img.shields.io/badge/Celery-5.4-37814A?logo=celery&logoColor=white)](https://docs.celeryq.dev/) [![Redis](https://img.shields.io/badge/Redis-5.2-DC382D?logo=redis&logoColor=white)](https://redis.io/)
+# Veridian
+[![Django](https://img.shields.io/badge/Django-5.1-092E20?logo=django&logoColor=white)](https://www.djangoproject.com/) [![DRF](https://img.shields.io/badge/DRF-3.15-ff1709?logo=django&logoColor=white)](https://www.django-rest-framework.org/) [![JWT](https://img.shields.io/badge/JWT-SimpleJWT-000000)](https://github.com/jazzband/djangorestframework-simplejwt) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-ready-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/) [![Celery](https://img.shields.io/badge/Celery-5.4-37814A?logo=celery&logoColor=white)](https://docs.celeryq.dev/) [![Redis](https://img.shields.io/badge/Redis-5.2-DC382D?logo=redis&logoColor=white)](https://redis.io/) [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/) [![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/) [![Recharts](https://img.shields.io/badge/Recharts-3-ff6b6b)](https://recharts.org/) [![date--fns](https://img.shields.io/badge/date--fns-4-3178c6)](https://date-fns.org/)
 
-Veridian is a Django REST Framework backend for a multi-tenant carbon emissions ingestion and analyst review platform.
+Veridian is a full-stack carbon emissions ingestion and analyst review platform.
 
-This repository currently contains the backend codebase only. The Django project, apps, API layer, parsers, seed command, and supporting documentation live under [backend/](backend). The root folder is intentionally thin so the backend can be treated as a self-contained deployable unit.
+The repository contains both the Django REST backend and the React/Vite frontend. Backend code lives under [backend/](backend); the analyst UI, API client, and page/component layer live under [frontend/](frontend).
 
 ## What has been implemented
 
-The backend already includes:
+The platform already includes:
 
 - Django 5.1 project configuration with development and production settings.
 - DRF with JWT authentication using `djangorestframework-simplejwt`.
@@ -22,9 +22,17 @@ The backend already includes:
 - A `seed_demo` management command that builds a realistic demo tenant and data set.
 - Repo-level design docs explaining the model layer, decisions, tradeoffs, and source assumptions.
 
+The frontend already includes:
+
+- A dashboard with summary cards, a 6-month scope breakdown chart, and recent imports.
+- Quality badges and import quality visibility in the dashboard, ingest page, and import detail page.
+- A review queue with keyboard navigation, row highlighting, and bulk history sparklines.
+- Record detail drawers with similar records, conversion-log transparency, and analyst comments.
+- Export flows for locked-record auditor exports.
+
 ## Recent Additions
 
-The backend now also includes audit-oriented controls that make the platform suitable for traceable review and export:
+The platform now also includes audit-oriented controls that make it suitable for traceable review and export:
 
 - Emission factor snapshots captured at approval time.
 - Duplicate-upload detection with SHA-256 file hashing and force override support.
@@ -34,6 +42,7 @@ The backend now also includes audit-oriented controls that make the platform sui
 - Analyst comments on records with edit/delete ownership rules.
 - Auditor export endpoints for CSV and JSON output.
 - Hardened admin access for internal operations use.
+- Frontend analyst workflows for scope charting, keyboard navigation, contextual review, and export handling.
 
 ## System Design
 
@@ -51,9 +60,15 @@ The design is intentionally explicit rather than magical. There is no hidden eve
 
 ## Repository Layout
 
-The backend code now lives here:
+The codebase is split across backend and frontend workspaces:
 
 ```text
+frontend/
+├── src/
+├── package.json
+├── vite.config.js
+└── tailwind.config.js
+
 backend/
 ├── apps/
 │   ├── auth_users/
@@ -71,6 +86,21 @@ backend/
 ├── SOURCES.md
 └── Procfile
 ```
+
+## Tech Stack
+
+- Backend: Django 5.1, Django REST Framework, SimpleJWT, Celery, Redis, PostgreSQL-ready models.
+- Frontend: React 19, Vite, React Router, TanStack Query, Axios, Recharts, date-fns, Tailwind CSS.
+- Tooling: npm scripts, ESLint, PostCSS, and Vite build tooling.
+
+## Frontend Workspace
+
+The frontend workspace is a React + Vite application with HMR and ESLint support.
+
+- `@vitejs/plugin-react` is the primary React integration.
+- `@vitejs/plugin-react-swc` is also available as an alternative React compiler pipeline.
+- The React Compiler is not enabled in the template because of its impact on development and build performance.
+- If you want stricter static checks, the recommended next step is a TypeScript migration with type-aware ESLint rules.
 
 ## Core Architecture
 
@@ -290,6 +320,7 @@ Implemented so far:
 - Review APIs for records and imports.
 - Demo seed command.
 - Audit-grade approval, export, comment, and data-quality features.
+- React frontend with dashboard, ingest, review queue, landing, login, and import detail pages.
 - Repo documentation.
 
 The next practical step is to install dependencies, run migrations, and verify the API against a real database.

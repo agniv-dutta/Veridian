@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { getImports, ingestSAP, ingestUtility, ingestTravel, reingestImport } from '../api/imports'
 import StatusBadge from '../components/StatusBadge'
+import QualityBadge from '../components/QualityBadge'
 import useToast from '../hooks/useToast'
 import { DocumentIcon, BoltIcon, PaperAirplaneIcon } from '../components/ImportSourceIcon'
 import { useClient } from '../context/ClientContext'
@@ -174,6 +175,12 @@ const Ingest = () => {
       return <PaperAirplaneIcon className="w-5 h-5 text-indigo-500" />
     }
   }
+
+  const getImportBreakdown = (job) => ({
+    parseFailures: job?.error_log?.length ?? job?.failed_records ?? 0,
+    outliers: job?.outlier_count ?? 0,
+    unitIssues: job?.unit_issue_count ?? 0,
+  })
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8 space-y-8 text-left font-sans">
@@ -382,6 +389,7 @@ const Ingest = () => {
               <tr>
                 <th className="px-6 py-3.5 text-left">Source Name</th>
                 <th className="px-6 py-3.5 text-left">Status</th>
+                <th className="px-6 py-3.5 text-left">Quality</th>
                 <th className="px-6 py-3.5 text-right">Record Count</th>
                 <th className="px-6 py-3.5 text-left">Timestamp</th>
                 <th className="px-6 py-3.5 text-right">Action</th>
@@ -390,13 +398,13 @@ const Ingest = () => {
             <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
               {isLoadingImports ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
                     Loading history...
                   </td>
                 </tr>
               ) : !importsData || importsData.results?.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-400 font-semibold">
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400 font-semibold">
                     No imports history found.
                   </td>
                 </tr>
@@ -412,6 +420,13 @@ const Ingest = () => {
                     </td>
                     <td className="px-6 py-4">
                       <StatusBadge status={job.status} />
+                    </td>
+                    <td className="px-6 py-4">
+                      <QualityBadge
+                        grade={job.grade}
+                        score={job.quality_score}
+                        {...getImportBreakdown(job)}
+                      />
                     </td>
                     <td className="px-6 py-4 text-right font-semibold text-gray-900">
                       {(job.records_count || 0).toLocaleString()}

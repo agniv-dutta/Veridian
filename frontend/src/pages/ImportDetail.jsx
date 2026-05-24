@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getImport, getImportPreview, reingestImport } from '../api/imports'
 import apiClient from '../api/client'
 import StatusBadge from '../components/StatusBadge'
+import QualityBadge from '../components/QualityBadge'
 import ScopeBadge from '../components/ScopeBadge'
 import RecordDetailPanel from '../components/RecordDetailPanel'
 import useToast from '../hooks/useToast'
@@ -85,6 +86,10 @@ const ImportDetail = () => {
     return Number(val).toLocaleString()
   }
 
+  const qualityScoreDisplay = importJob?.quality_score == null
+    ? '—'
+    : `${Math.round((Number(importJob.quality_score) <= 1 ? Number(importJob.quality_score) * 100 : Number(importJob.quality_score)))}%`
+
   if (isLoadingJob) {
     return (
       <div className="max-w-7xl mx-auto px-6 py-8 space-y-6 animate-pulse text-left">
@@ -136,6 +141,20 @@ const ImportDetail = () => {
           <div className="bg-slate-50 border p-3 rounded-xl min-w-[100px] text-center">
             <span className="block text-gray-400 uppercase tracking-wider text-[9px] mb-0.5">Total Records</span>
             <span className="text-lg text-gray-900">{formatNum(importJob.total_records)}</span>
+          </div>
+          <div className="bg-slate-50 border p-3 rounded-xl min-w-[140px] text-center">
+            <span className="block text-gray-400 uppercase tracking-wider text-[9px] mb-0.5">Quality</span>
+            <div className="flex items-center justify-center">
+              <QualityBadge
+                grade={importJob.grade}
+                score={importJob.quality_score}
+                parseFailures={importJob.error_log?.length ?? importJob.failed_records ?? 0}
+                outliers={importJob.outlier_count ?? 0}
+                unitIssues={importJob.unit_issue_count ?? 0}
+                showInterpretation
+              />
+            </div>
+            <span className="mt-1 block text-[10px] font-semibold text-gray-500">{qualityScoreDisplay}</span>
           </div>
           <div className="bg-emerald-50/50 border border-emerald-100 p-3 rounded-xl min-w-[100px] text-center text-emerald-800">
             <span className="block text-emerald-600/70 uppercase tracking-wider text-[9px] mb-0.5">Successful</span>

@@ -2,11 +2,13 @@ import React, { useEffect } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getRecord, updateRecord, approveRecord, rejectRecord, dismissFlag } from '../api/records'
-import StatusBadge from './StatusBadge'
 import ScopeBadge from './ScopeBadge'
+import SimilarRecordsPanel from './SimilarRecordsPanel'
+import CommentThread from './CommentThread'
+import ConversionLog from './ConversionLog'
 import useToast from '../hooks/useToast'
 
-const RecordDetailPanel = ({ recordId, isOpen, onClose }) => {
+const RecordDetailPanel = ({ recordId, isOpen, onClose, onAdvanceNext }) => {
   const queryClient = useQueryClient()
   const toast = useToast()
 
@@ -72,7 +74,11 @@ const RecordDetailPanel = ({ recordId, isOpen, onClose }) => {
       toast.success('Record approved.')
       queryClient.invalidateQueries(['records'])
       queryClient.invalidateQueries(['summary'])
-      onClose()
+      if (onAdvanceNext) {
+        onAdvanceNext()
+      } else {
+        onClose()
+      }
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to approve record.')
@@ -86,7 +92,11 @@ const RecordDetailPanel = ({ recordId, isOpen, onClose }) => {
       toast.success('Record rejected.')
       queryClient.invalidateQueries(['records'])
       queryClient.invalidateQueries(['summary'])
-      onClose()
+      if (onAdvanceNext) {
+        onAdvanceNext()
+      } else {
+        onClose()
+      }
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to reject record.')
@@ -118,6 +128,11 @@ const RecordDetailPanel = ({ recordId, isOpen, onClose }) => {
   // Calculate live emissions
   const emissionFactor = record?.emission_factor || 0
   const calculatedEmissions = (Number(watchedQuantity || 0) * emissionFactor).toFixed(2)
+  const commentCount = record?.comments?.length || 0
+
+  const scrollToComments = () => {
+    document.getElementById('comments-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   if (!isOpen) return null
 
@@ -140,6 +155,13 @@ const RecordDetailPanel = ({ recordId, isOpen, onClose }) => {
                 {record?.source_type || 'SOURCE'}
               </span>
               {record && <ScopeBadge scope={record.scope} />}
+              <button
+                type="button"
+                onClick={scrollToComments}
+                className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded tracking-wider uppercase border border-slate-200 hover:bg-slate-200 transition-colors"
+              >
+                Notes ({commentCount})
+              </button>
             </div>
             {record && (
               <span className="text-[10px] text-gray-400 font-semibold uppercase">
@@ -211,14 +233,21 @@ const RecordDetailPanel = ({ recordId, isOpen, onClose }) => {
                   <h3 className="text-xs font-bold text-slate-400 tracking-wider uppercase">Raw Data</h3>
                   <div className="bg-slate-50 border border-gray-200 rounded-xl p-4 text-xs font-medium text-gray-700 divide-y divide-gray-200/50 h-[300px] overflow-y-auto space-y-2.5">
                     {record.raw_data && Object.keys(record.raw_data).length > 0 ? (
-                      Object.entries(record.raw_data).map(([key, val]) => (
-                        <div key={key} className="pt-2.5 first:pt-0">
-                          <span className="text-[10px] font-bold text-gray-400 block tracking-wider uppercase">{key}</span>
-                          <span className="text-gray-900 block mt-0.5 break-all">{val?.toString() || '—'}</span>
-                        </div>
-                      ))
+                      Object.entries(record.raw_data)
+                        .filter(([key]) => key !== 'conversion_log')
+                        .map(([key, val]) => (
+                          <div key={key} className="pt-2.5 first:pt-0">
+                            <span className="text-[10px] font-bold text-gray-400 block tracking-wider uppercase">{key}</span>
+                            <span className="text-gray-900 block mt-0.5 break-all">{val?.toString() || '—'}</span>
+                          </div>
+                        ))
                     ) : (
                       <span className="text-gray-400 italic block py-4 text-center">No raw metadata records.</span>
+                    )}
+                    {record.raw_data?.conversion_log && record.raw_data.conversion_log.length > 0 && (
+                      <div className="pt-2.5 first:pt-0">
+                        <ConversionLog conversionLog={record.raw_data.conversion_log} />
+                      </div>
                     )}
                   </div>
                 </div>
@@ -305,6 +334,14 @@ const RecordDetailPanel = ({ recordId, isOpen, onClose }) => {
 
               </div>
 
+              {/* Similar records */}
+              <SimilarRecordsPanel
+                recordId={recordId}
+                activityCategory={record.activity_category}
+                scope={record.scope}
+                unit={record.unit}
+              />
+
               {/* Audit Trail Timeline */}
               <div className="space-y-4 text-left border-t border-gray-100 pt-6">
                 <h3 className="text-xs font-bold text-slate-400 tracking-wider uppercase">Audit Trail</h3>
@@ -338,6 +375,9 @@ const RecordDetailPanel = ({ recordId, isOpen, onClose }) => {
                   )}
                 </div>
               </div>
+
+              {/* Analyst comments */}
+              <CommentThread recordId={recordId} />
             </>
           )}
         </div>
@@ -355,16 +395,24 @@ const RecordDetailPanel = ({ recordId, isOpen, onClose }) => {
             <button
               onClick={() => rejectMutation.mutate()}
               disabled={isLoading || record?.locked || rejectMutation.isPending}
+              data-record-action="reject"
               className="px-4 py-2 border border-red-300 hover:bg-red-50 text-red-600 text-xs font-bold rounded-lg transition-colors disabled:opacity-50"
             >
-              Reject
+              <span className="inline-flex items-center gap-2">
+                <span>Reject</span>
+                <kbd className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-white border border-red-200 text-red-500">r</kbd>
+              </span>
             </button>
             <button
               onClick={() => approveMutation.mutate()}
               disabled={isLoading || record?.locked || approveMutation.isPending}
+              data-record-action="approve"
               className="px-4 py-2 bg-[#115e59] hover:bg-[#0f766e] text-white text-xs font-bold rounded-lg shadow-sm transition-colors disabled:opacity-50"
             >
-              Approve
+              <span className="inline-flex items-center gap-2">
+                <span>Approve</span>
+                <kbd className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-white/15 border border-white/20 text-white">a</kbd>
+              </span>
             </button>
             <button
               onClick={handleSubmit(onSubmit)}

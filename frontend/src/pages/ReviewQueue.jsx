@@ -1,15 +1,22 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getRecords, bulkApprove, bulkReject } from '../api/records'
+import { getSparklines } from '../api/records'
 import StatusBadge from '../components/StatusBadge'
 import ScopeBadge from '../components/ScopeBadge'
+import TrendSparkline from '../components/TrendSparkline'
+import KeyboardShortcutsModal from '../components/KeyboardShortcutsModal'
+import ExportModal from '../components/ExportModal'
 import RecordDetailPanel from '../components/RecordDetailPanel'
+import useKeyboardNav from '../hooks/useKeyboardNav'
+import { useAuth } from '../context/AuthContext'
 import useToast from '../hooks/useToast'
 import { useClient } from '../context/ClientContext'
 
 const ReviewQueue = () => {
   const { clientId } = useClient()
+  const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const toast = useToast()
@@ -28,6 +35,9 @@ const ReviewQueue = () => {
   // Detail panel active state
   const [activeRecordId, setActiveRecordId] = useState(null)
   const [isPanelOpen, setIsPanelOpen] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const [isKeyboardHelpOpen, setIsKeyboardHelpOpen] = useState(false)
+  const [isExportOpen, setIsExportOpen] = useState(false)
 
   // Sync local filters with searchParams on initial load
   useEffect(() => {
@@ -79,6 +89,15 @@ const ReviewQueue = () => {
     queryKey: ['records', queryParams],
     queryFn: () => getRecords(queryParams),
     enabled: !!clientId,
+  })
+
+  const visibleRecords = recordsData?.results || []
+  const visibleRecordIds = useMemo(() => visibleRecords.map((record) => record.id), [visibleRecords])
+
+  const { data: sparklineMap } = useQuery({
+    queryKey: ['sparklines', clientId, visibleRecordIds.join(',')],
+    queryFn: () => getSparklines(clientId, visibleRecordIds),
+    enabled: !!clientId && visibleRecordIds.length > 0,
   })
 
   // Bulk Approve Mutation
@@ -167,6 +186,59 @@ const ReviewQueue = () => {
     }
     return classes
   }
+
+  const isAdmin = user?.role === 'admin'
+
+  const handleOpenRecordAtIndex = (index) => {
+    const record = visibleRecords[index]
+    if (!record) return
+    setHighlightedIndex(index)
+    setActiveRecordId(record.id)
+    setIsPanelOpen(true)
+  }
+
+  const handleAdvanceNext = () => {
+    if (visibleRecords.length === 0) return
+    const currentIndex = Math.max(visibleRecords.findIndex((record) => record.id === activeRecordId), 0)
+    const nextIndex = currentIndex >= visibleRecords.length - 1 ? 0 : currentIndex + 1
+    handleOpenRecordAtIndex(nextIndex)
+  }
+
+  const handleAdvancePrev = () => {
+    if (visibleRecords.length === 0) return
+    const currentIndex = Math.max(visibleRecords.findIndex((record) => record.id === activeRecordId), 0)
+    const prevIndex = currentIndex <= 0 ? visibleRecords.length - 1 : currentIndex - 1
+    handleOpenRecordAtIndex(prevIndex)
+  }
+
+  const triggerPanelAction = (action) => {
+    document.querySelector(`[data-record-action="${action}"]`)?.click()
+  }
+
+  useEffect(() => {
+    if (visibleRecords.length === 0) {
+      setHighlightedIndex(0)
+      return
+    }
+    setHighlightedIndex((current) => Math.min(current, visibleRecords.length - 1))
+  }, [visibleRecords.length])
+
+  useKeyboardNav({
+    isPanelOpen,
+    onApprove: () => triggerPanelAction('approve'),
+    onReject: () => triggerPanelAction('reject'),
+    onNext: handleAdvanceNext,
+    onPrev: handleAdvancePrev,
+    onOpenPanel: handleOpenRecordAtIndex,
+    onClosePanel: () => {
+      setIsPanelOpen(false)
+      setActiveRecordId(null)
+    },
+    onShowHelp: () => setIsKeyboardHelpOpen(true),
+    highlightedIndex,
+    setHighlightedIndex,
+    recordCount: visibleRecords.length,
+  })
 
   // Format kgCO2e to tCO2e
   const formatTco2e = (kgVal) => {
@@ -297,9 +369,14 @@ const ReviewQueue = () => {
             <p className="text-sm text-gray-500 mt-1">Audit, edit, and approve tenant emission records.</p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="px-4 py-2 border border-gray-300 hover:bg-slate-50 text-gray-700 text-xs font-bold rounded-lg transition-colors">
-              Export Report
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setIsExportOpen(true)}
+                className="px-4 py-2 border border-gray-300 hover:bg-slate-50 text-gray-700 text-xs font-bold rounded-lg transition-colors"
+              >
+                Export for auditors
+              </button>
+            )}
             <button
               onClick={() => navigate('/ingest')}
               className="px-4 py-2 bg-[#115e59] hover:bg-[#0f766e] text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
@@ -397,19 +474,20 @@ const ReviewQueue = () => {
                     </td>
                   </tr>
                 ) : (
-                  recordsData.results.map((record) => {
+                  visibleRecords.map((record, index) => {
                     const isSelected = selectedIds.includes(record.id)
                     const isFlagged = (record.status || '').toLowerCase() === 'flagged'
                     const isRejected = (record.status || '').toLowerCase() === 'rejected'
+                    const sparklineData = sparklineMap?.[record.id]
+                    const currentValue = Number(record.calculated_kgco2e || 0)
 
                     return (
                       <tr
                         key={record.id}
                         onClick={() => {
-                          setActiveRecordId(record.id)
-                          setIsPanelOpen(true)
+                          handleOpenRecordAtIndex(index)
                         }}
-                        className={getRowClassName(record)}
+                        className={`${getRowClassName(record)} ${highlightedIndex === index ? 'outline outline-2 outline-teal-500 outline-offset-[-2px] bg-teal-50/30' : ''}`}
                       >
                         <td
                           className="px-4 py-4 text-center"
@@ -447,7 +525,12 @@ const ReviewQueue = () => {
                           {Number(record.quantity).toLocaleString()} {record.unit}
                         </td>
                         <td className={`px-4 py-4 text-right whitespace-nowrap ${isRejected ? 'text-red-600' : 'text-emerald-700 font-bold'}`}>
-                          {formatTco2e(record.calculated_kgco2e)}
+                          <div className="flex flex-col items-end gap-1">
+                            <span>{formatTco2e(record.calculated_kgco2e)}</span>
+                            {sparklineData && sparklineData.length > 0 && (
+                              <TrendSparkline data={sparklineData} currentValue={currentValue} />
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-4">
                           <ScopeBadge scope={record.scope} />
@@ -523,6 +606,27 @@ const ReviewQueue = () => {
           setIsPanelOpen(false)
           setActiveRecordId(null)
         }}
+        onAdvanceNext={handleAdvanceNext}
+        onAdvancePrev={handleAdvancePrev}
+      />
+
+      <button
+        type="button"
+        onClick={() => setIsKeyboardHelpOpen(true)}
+        className="fixed bottom-6 right-6 z-20 px-3 py-2 rounded-full bg-white border border-gray-200 shadow-lg text-xs font-bold text-gray-600 hover:text-gray-900 hover:border-gray-300 transition-colors"
+      >
+        Keyboard shortcuts
+      </button>
+
+      <KeyboardShortcutsModal
+        isOpen={isKeyboardHelpOpen}
+        onClose={() => setIsKeyboardHelpOpen(false)}
+      />
+
+      <ExportModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        clientId={clientId}
       />
 
     </div>

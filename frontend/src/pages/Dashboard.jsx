@@ -1,15 +1,21 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
-import { getSummary } from '../api/summary'
+import { getSummary, getScopeTrend } from '../api/summary'
 import { getImports } from '../api/imports'
 import StatusBadge from '../components/StatusBadge'
+import QualityBadge from '../components/QualityBadge'
+import ScopeBreakdownChart from '../components/ScopeBreakdownChart'
+import ExportModal from '../components/ExportModal'
 import { DocumentIcon, BoltIcon, PaperAirplaneIcon } from '../components/ImportSourceIcon'
+import { useAuth } from '../context/AuthContext'
 import { useClient } from '../context/ClientContext'
 
 const Dashboard = () => {
   const { clientId } = useClient()
+  const { user } = useAuth()
   const navigate = useNavigate()
+  const [isExportOpen, setIsExportOpen] = React.useState(false)
 
   // Fetch summary metrics
   const {
@@ -34,6 +40,15 @@ const Dashboard = () => {
   } = useQuery({
     queryKey: ['recent-imports', clientId],
     queryFn: () => getImports({ client: clientId, limit: 10 }),
+    enabled: !!clientId,
+  })
+
+  const {
+    data: scopeTrendData,
+    isLoading: isLoadingScopeTrend,
+  } = useQuery({
+    queryKey: ['scope-trend', clientId],
+    queryFn: () => getScopeTrend(clientId),
     enabled: !!clientId,
   })
 
@@ -94,6 +109,13 @@ const Dashboard = () => {
 
   const hasErrors = isErrorSummary || isErrorImports
   const isAnyLoading = isLoadingSummary || isLoadingImports
+  const isAdmin = user?.role === 'admin'
+
+  const getImportBreakdown = (job) => ({
+    parseFailures: job?.error_log?.length ?? job?.failed_records ?? 0,
+    outliers: job?.outlier_count ?? 0,
+    unitIssues: job?.unit_issue_count ?? 0,
+  })
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8 space-y-8 text-left font-sans">
@@ -105,6 +127,14 @@ const Dashboard = () => {
           <p className="text-sm text-gray-500 mt-1">Monitoring sustainability metrics and ingestion pipeline performance.</p>
         </div>
         <div>
+          {isAdmin && (
+            <button
+              onClick={() => setIsExportOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 hover:bg-slate-50 text-gray-700 text-sm font-semibold rounded-lg shadow-sm transition-colors mr-2"
+            >
+              Export for auditors
+            </button>
+          )}
           <button
             onClick={() => navigate('/review')}
             className="inline-flex items-center gap-2 px-4 py-2 bg-[#115e59] hover:bg-[#0f766e] text-white text-sm font-semibold rounded-lg shadow-sm transition-colors"
@@ -116,6 +146,8 @@ const Dashboard = () => {
           </button>
         </div>
       </div>
+
+      <ScopeBreakdownChart data={scopeTrendData} isLoading={isLoadingScopeTrend} />
 
       {/* Error State Banner */}
       {hasErrors && (
@@ -257,19 +289,20 @@ const Dashboard = () => {
                     <th className="px-6 py-3.5 text-right">Records</th>
                     <th className="px-6 py-3.5 text-right">Flagged</th>
                     <th className="px-6 py-3.5">Status</th>
+                    <th className="px-6 py-3.5">Quality</th>
                     <th className="px-6 py-3.5">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
                   {isAnyLoading ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-8">
+                      <td colSpan={7} className="px-6 py-8">
                         <TableSkeleton />
                       </td>
                     </tr>
                   ) : !importsData || importsData.results?.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-gray-400 font-semibold">
+                      <td colSpan={7} className="px-6 py-8 text-center text-gray-400 font-semibold">
                         No recent imports found.
                       </td>
                     </tr>
@@ -294,6 +327,13 @@ const Dashboard = () => {
                         </td>
                         <td className="px-6 py-4">
                           <StatusBadge status={job.status} />
+                        </td>
+                        <td className="px-6 py-4">
+                          <QualityBadge
+                            grade={job.grade}
+                            score={job.quality_score}
+                            {...getImportBreakdown(job)}
+                          />
                         </td>
                         <td className="px-6 py-4">
                           <Link
@@ -402,6 +442,12 @@ const Dashboard = () => {
         </div>
 
       </div>
+
+      <ExportModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        clientId={clientId}
+      />
 
     </div>
   )

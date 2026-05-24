@@ -39,3 +39,36 @@ export const dismissFlag = async (recordId, flagId) => {
   const response = await apiClient.delete(`/api/records/${recordId}/flags/${flagId}/`)
   return response.data
 }
+
+export const getSimilarRecords = async (recordId) => {
+  const response = await apiClient.get(`/api/records/${recordId}/similar/`)
+  return response.data
+}
+
+export const getComments = async (recordId) => {
+  const response = await apiClient.get(`/api/records/${recordId}/comments/`)
+  return response.data
+}
+
+export const postComment = async (recordId, data) => {
+  const response = await apiClient.post(`/api/records/${recordId}/comments/`, data)
+  return response.data
+}
+
+export const updateComment = async (recordId, commentId, data) => {
+  const response = await apiClient.patch(`/api/records/${recordId}/comments/${commentId}/`, data)
+  return response.data
+}
+
+export const deleteComment = async (recordId, commentId) => {
+  const response = await apiClient.delete(`/api/records/${recordId}/comments/${commentId}/`)
+  return response.data
+}
+
+export const getSparklines = async (clientId, ids) => {
+  const response = await apiClient.get('/api/records/sparklines/', {
+    params: { client: clientId, ids: ids.join(',') },
+  })
+  return response.data
+}
+

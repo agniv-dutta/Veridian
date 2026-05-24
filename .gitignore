@@ -37,3 +37,20 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+
+# Frontend / Node.js
+logs
+node_modules
+dist-ssr
+*.local
+
+# Frontend editor files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
