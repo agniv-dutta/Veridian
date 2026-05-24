@@ -49,6 +49,23 @@ class ImportJobViewSet(TenantQuerysetMixin, viewsets.ModelViewSet):
         job, total, successful, failed = ingest_source(client=job.client, source_type=job.source_type, uploaded_by=request.user, file_obj=job.raw_file, existing_job=job)
         return Response({"import_job_id": str(job.id), "total": total, "successful": successful, "failed": failed})
 
+    @action(detail=True, methods=["get"])
+    def records(self, request, pk=None):
+        job = self.get_object()
+        status_value = request.query_params.get("status")
+        queryset = job.normalized_records.all()
+        if status_value:
+            if status_value == "flagged":
+                queryset = queryset.filter(status=NormalizedRecord.Status.FLAGGED)
+            elif status_value == "failed":
+                queryset = queryset.filter(status=NormalizedRecord.Status.REJECTED)
+            else:
+                queryset = queryset.filter(status=status_value)
+        
+        from apps.records.serializers import NormalizedRecordListSerializer
+        serializer = NormalizedRecordListSerializer(queryset, many=True, context={"request": request})
+        return Response(serializer.data)
+
 
 class SummaryView(TenantQuerysetMixin, APIView):
     permission_classes = [IsAuthenticated]
