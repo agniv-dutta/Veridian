@@ -153,6 +153,8 @@ class Command(BaseCommand):
         job.failed_records = 0
         job.status = ImportJob.Status.COMPLETED
         job.save(update_fields=["total_records", "successful_records", "failed_records", "status"])
+        job.compute_quality_score()
+        job.save(update_fields=["quality_score"])
 
     def _seed_utility(self, client, user, job, status_queue):
         rows = []
@@ -215,6 +217,8 @@ class Command(BaseCommand):
         job.failed_records = 0
         job.status = ImportJob.Status.COMPLETED
         job.save(update_fields=["total_records", "successful_records", "failed_records", "status"])
+        job.compute_quality_score()
+        job.save(update_fields=["quality_score"])
 
     def _seed_travel(self, client, user, job, status_queue):
         rows = []
@@ -329,3 +333,5 @@ class Command(BaseCommand):
         job.failed_records = 0
         job.status = ImportJob.Status.COMPLETED
         job.save(update_fields=["total_records", "successful_records", "failed_records", "status"])
+        job.compute_quality_score()
+        job.save(update_fields=["quality_score"])

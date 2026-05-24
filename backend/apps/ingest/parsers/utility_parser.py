@@ -82,17 +82,21 @@ class UtilityParser:
         unit = raw_unit
         needs_unit_flag = False
         flags = []
+        conversion_log = []
 
         if raw_unit.lower() in {"mwh", "megawatt hour", "megawatt hours"}:
             quantity_kwh = raw_quantity * Decimal("1000")
             unit = "kWh"
+            conversion_log.append({"step": "unit_normalization", "from_value": str(raw_quantity), "from_unit": raw_unit, "to_value": str(quantity_kwh), "to_unit": "kWh", "factor": "1000", "note": "1 MWh = 1000 kWh"})
         elif raw_unit.lower() == "kvah":
             needs_unit_flag = True
             flags.append({"flag_type": "unit_mismatch", "message": "kVAh cannot be converted to kWh without power factor"})
             unit = "kVAh (unconverted)"
+            conversion_log.append({"step": "unit_normalization", "from_value": str(raw_quantity), "from_unit": raw_unit, "to_value": str(quantity_kwh), "to_unit": unit, "note": "Power factor required for kVAh to kWh conversion"})
         elif raw_unit.lower() != "kwh":
             needs_unit_flag = True
             flags.append({"flag_type": "unit_mismatch", "message": f"Utility unit {raw_unit} requires manual review"})
+            conversion_log.append({"step": "unit_normalization", "from_value": str(raw_quantity), "from_unit": raw_unit, "to_value": str(quantity_kwh), "to_unit": unit, "note": "Unit left as provided pending analyst review"})
         if quantity_kwh == 0:
             flags.append({"flag_type": "zero_value", "message": "Quantity is zero — verify source data"})
 
@@ -114,6 +118,7 @@ class UtilityParser:
             "source_identifier": meter_id,
             "row_index": row_index,
             "flags": flags,
+            "conversion_log": conversion_log,
             "raw_data": {
                 "meter_id": meter_id,
                 "site_address": site_address,

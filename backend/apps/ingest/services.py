@@ -5,6 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
@@ -44,24 +45,28 @@ def get_parser(source_type: str):
 
 
 @transaction.atomic
-def ingest_source(*, client, source_type: str, uploaded_by, file_obj, existing_job: ImportJob | None = None) -> tuple[ImportJob, int, int, int]:
+def ingest_source(*, client, source_type: str, uploaded_by, file_obj, existing_job: ImportJob | None = None, file_hash: str = "", force_reason: str = "") -> tuple[ImportJob, int, int, int]:
     parser = get_parser(source_type)
     preview = preview_lines(file_obj)
     parsed_records, errors = parser.parse(file_obj)
-    job = existing_job or ImportJob.objects.create(client=client, source_type=source_type, uploaded_by=uploaded_by, status=ImportJob.Status.PROCESSING)
+    job = existing_job or ImportJob.objects.create(client=client, source_type=source_type, uploaded_by=uploaded_by, status=ImportJob.Status.PROCESSING, file_hash=file_hash, force_reason=force_reason)
     if existing_job:
         job.source_type = source_type
         job.uploaded_by = uploaded_by
         job.status = ImportJob.Status.PROCESSING
+        if file_hash:
+            job.file_hash = file_hash
+        if force_reason:
+            job.force_reason = force_reason
         job.raw_file_preview = preview
         job.error_log = errors
-        job.save(update_fields=["source_type", "uploaded_by", "status", "raw_file_preview", "error_log"])
+        job.save(update_fields=["source_type", "uploaded_by", "status", "file_hash", "force_reason", "raw_file_preview", "error_log"])
         job.raw_records.all().delete()
         job.normalized_records.all().delete()
     else:
         job.raw_file_preview = preview
         job.error_log = errors
-        job.save(update_fields=["raw_file_preview", "error_log"])
+        job.save(update_fields=["file_hash", "force_reason", "raw_file_preview", "error_log"])
 
     raw_records = []
     for parsed in parsed_records:
@@ -72,6 +77,7 @@ def ingest_source(*, client, source_type: str, uploaded_by, file_obj, existing_j
                 source_type=source_type,
                 row_index=parsed.get("row_index", len(raw_records) + 1),
                 raw_data=parsed.get("raw_data", parsed),
+                conversion_log=parsed.get("conversion_log", []),
                 parse_status=RawRecord.ParseStatus.OK,
                 parse_error="",
             )
@@ -87,6 +93,7 @@ def ingest_source(*, client, source_type: str, uploaded_by, file_obj, existing_j
                 source_type=source_type,
                 row_index=error.get("row", 0),
                 raw_data={"row": error.get("row", 0), "source_type": source_type},
+                conversion_log=[],
                 parse_status=RawRecord.ParseStatus.FAILED,
                 parse_error=error.get("error_message", "Parsing failed"),
             )
@@ -132,6 +139,7 @@ def ingest_source(*, client, source_type: str, uploaded_by, file_obj, existing_j
                 calculated_kgco2e=quantity * emission_factor,
                 scope=parsed["scope"],
                 status=NormalizedRecord.Status.PENDING,
+                requires_dual_approval=(quantity * emission_factor) > Decimal(str(settings.DUAL_APPROVAL_THRESHOLD)),
             )
         )
     NormalizedRecord.objects.bulk_create(normalized)
@@ -156,4 +164,6 @@ def ingest_source(*, client, source_type: str, uploaded_by, file_obj, existing_j
     job.failed_records = len(errors)
     job.status = ImportJob.Status.COMPLETED if parsed_records else ImportJob.Status.FAILED
     job.save(update_fields=["total_records", "successful_records", "failed_records", "status"])
+    job.compute_quality_score()
+    job.save(update_fields=["quality_score"])
     return job, job.total_records, job.successful_records, job.failed_records

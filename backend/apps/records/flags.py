@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import timedelta
 from decimal import Decimal
 from statistics import mean, pstdev
@@ -28,6 +29,10 @@ class FlagEngine:
         return flags
 
     def _build_flag(self, record: NormalizedRecord, flag_type: str, message: str) -> RecordFlag:
+        if flag_type == RecordFlag.FlagType.UNIT_MISMATCH:
+            conversion_log = getattr(getattr(record, "raw_record", None), "conversion_log", None) or []
+            if conversion_log:
+                message = f"{message} | conversion_log={json.dumps(conversion_log, default=str)}"
         return RecordFlag(record=record, flag_type=flag_type, message=message)
 
     def _statistical_outlier_flags(self, record: NormalizedRecord) -> list[RecordFlag]:

@@ -16,6 +16,7 @@ class NormalizedRecord(models.Model):
 
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
+        PENDING_SECONDARY_APPROVAL = "pending_secondary_approval", "Pending secondary approval"
         FLAGGED = "flagged", "Flagged"
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
@@ -32,13 +33,17 @@ class NormalizedRecord(models.Model):
     quantity = models.DecimalField(max_digits=20, decimal_places=6)
     unit = models.CharField(max_length=50)
     emission_factor = models.DecimalField(max_digits=20, decimal_places=8)
+    emission_factor_snapshot = models.JSONField(default=dict, blank=True)
     emission_factor_source = models.CharField(max_length=200)
     calculated_kgco2e = models.DecimalField(max_digits=20, decimal_places=4)
     scope = models.IntegerField(choices=[(1, 1), (2, 2), (3, 3)])
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    status = models.CharField(max_length=40, choices=Status.choices, default=Status.PENDING)
     approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="approved_records")
     approved_at = models.DateTimeField(null=True, blank=True)
     locked = models.BooleanField(default=False)
+    requires_dual_approval = models.BooleanField(default=False)
+    secondary_approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="secondary_approved_records")
+    secondary_approved_at = models.DateTimeField(null=True, blank=True)
     is_edited = models.BooleanField(default=False)
     edited_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="edited_records")
     edited_at = models.DateTimeField(null=True, blank=True)
@@ -103,3 +108,19 @@ class AuditEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.event_type} @ {self.timestamp}"
+
+
+class RecordComment(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    record = models.ForeignKey(NormalizedRecord, on_delete=models.CASCADE, related_name="comments")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="record_comments")
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_internal = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self) -> str:
+        return f"Comment on {self.record_id} by {self.author_id}"

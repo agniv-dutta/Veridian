@@ -81,10 +81,16 @@ class SAPParser:
         cost_center = tokens[6]
         scope, activity_category = self._derive_scope(material_number)
         flags = []
+        conversion_log = []
+        if raw_unit in self.SAP_UNIT_MAP:
+            mapped_unit = self.SAP_UNIT_MAP[raw_unit]
+            if raw_unit != mapped_unit.upper():
+                conversion_log.append({"step": "sap_unit_map", "from_unit": raw_unit, "to_unit": mapped_unit, "note": f"SAP internal unit {raw_unit} mapped to standard {mapped_unit}"})
         if plant_code.startswith("BAD") or plant_code.startswith("XYZ"):
             flags.append({"flag_type": "unresolved_code", "message": f"Plant code {plant_code} not resolved"})
         if raw_unit not in self.SAP_UNIT_MAP:
             flags.append({"flag_type": "unit_mismatch", "message": f"SAP unit {raw_unit} requires manual mapping"})
+            conversion_log.append({"step": "sap_unit_map", "from_unit": raw_unit, "to_unit": unit, "note": "Unmapped SAP unit lowercased for normalization"})
 
         return {
             "document_number": document_number,
@@ -102,6 +108,7 @@ class SAPParser:
             "source_identifier": plant_code,
             "row_index": row_index,
             "flags": flags,
+            "conversion_log": conversion_log,
             "raw_data": {
                 "document_number": document_number,
                 "posting_date": posting_date.isoformat(),

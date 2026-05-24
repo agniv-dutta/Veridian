@@ -79,11 +79,14 @@ class TravelParser:
         period_end = self._parse_date(segment.get("arrivalDate"))
         distance = segment.get("distanceKm")
         flags = []
+        conversion_log = []
         if distance is None:
             distance = self._haversine_from_iata(departure, arrival)
             if distance is None:
                 flags.append({"flag_type": "unresolved_code", "message": f"IATA code {departure or arrival} not in lookup"})
                 distance = Decimal("0")
+            else:
+                conversion_log.append({"step": "distance_estimation", "from_value": f"{departure}-{arrival}", "from_unit": "IATA", "to_value": str(distance), "to_unit": "km", "note": "Computed from IATA airport coordinates"})
         quantity = Decimal(str(distance)).quantize(Decimal("0.0001")) if distance is not None else Decimal("0")
         return self._base_record(
             trip_id=trip_id,
@@ -98,6 +101,7 @@ class TravelParser:
             quantity=quantity,
             source_identifier=trip_id,
             flags=flags,
+            conversion_log=conversion_log,
             raw_data={**segment, "tripId": trip_id},
         )
 
@@ -120,6 +124,7 @@ class TravelParser:
             quantity=Decimal(str(nights)),
             source_identifier=trip_id,
             flags=[],
+            conversion_log=[],
             raw_data={**segment, "tripId": trip_id},
         )
 
@@ -144,6 +149,7 @@ class TravelParser:
             quantity=Decimal(str(distance)),
             source_identifier=trip_id,
             flags=flags,
+            conversion_log=[],
             raw_data={**segment, "tripId": trip_id},
         )
 
@@ -168,10 +174,11 @@ class TravelParser:
             quantity=Decimal(str(distance)),
             source_identifier=trip_id,
             flags=flags,
+            conversion_log=[],
             raw_data={**segment, "tripId": trip_id},
         )
 
-    def _base_record(self, trip_id: str, cost_center: str, segment_index: int, period_start: date, period_end: date, description: str, activity_category: str, scope: int, unit: str, quantity: Decimal, source_identifier: str, flags: list[dict], raw_data: dict) -> dict:
+    def _base_record(self, trip_id: str, cost_center: str, segment_index: int, period_start: date, period_end: date, description: str, activity_category: str, scope: int, unit: str, quantity: Decimal, source_identifier: str, flags: list[dict], conversion_log: list[dict], raw_data: dict) -> dict:
         return {
             "trip_id": trip_id,
             "cost_center": cost_center,
@@ -186,6 +193,7 @@ class TravelParser:
             "source_identifier": source_identifier,
             "segment_index": segment_index,
             "flags": flags,
+            "conversion_log": conversion_log,
             "raw_data": raw_data,
         }
 

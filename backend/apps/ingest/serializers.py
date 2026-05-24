@@ -4,10 +4,15 @@ from apps.ingest.models import ImportJob, RawRecord
 
 
 class ImportJobSerializer(serializers.ModelSerializer):
+    grade = serializers.SerializerMethodField()
+
     class Meta:
         model = ImportJob
-        fields = ["id", "client", "source_type", "status", "uploaded_by", "uploaded_at", "raw_file", "total_records", "successful_records", "failed_records"]
-        read_only_fields = ["id", "status", "uploaded_by", "uploaded_at", "total_records", "successful_records", "failed_records"]
+        fields = ["id", "client", "source_type", "status", "uploaded_by", "uploaded_at", "raw_file", "total_records", "successful_records", "failed_records", "quality_score", "grade"]
+        read_only_fields = ["id", "status", "uploaded_by", "uploaded_at", "total_records", "successful_records", "failed_records", "quality_score", "grade"]
+
+    def get_grade(self, obj):
+        return obj.quality_grade
 
 
 class ImportJobDetailSerializer(serializers.ModelSerializer):
@@ -18,5 +23,5 @@ class ImportJobDetailSerializer(serializers.ModelSerializer):
 class RawRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = RawRecord
-        fields = ["id", "import_job", "client", "source_type", "row_index", "raw_data", "parse_status", "parse_error", "created_at"]
+        fields = ["id", "import_job", "client", "source_type", "row_index", "raw_data", "conversion_log", "parse_status", "parse_error", "created_at"]
         read_only_fields = fields

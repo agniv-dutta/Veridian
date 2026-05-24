@@ -1,4 +1,5 @@
 # Veridian Backend
+[![Django](https://img.shields.io/badge/Django-5.1-092E20?logo=django&logoColor=white)](https://www.djangoproject.com/) [![DRF](https://img.shields.io/badge/DRF-3.15-ff1709?logo=django&logoColor=white)](https://www.django-rest-framework.org/) [![JWT](https://img.shields.io/badge/JWT-SimpleJWT-000000)](https://github.com/jazzband/djangorestframework-simplejwt) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-ready-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/) [![Celery](https://img.shields.io/badge/Celery-5.4-37814A?logo=celery&logoColor=white)](https://docs.celeryq.dev/) [![Redis](https://img.shields.io/badge/Redis-5.2-DC382D?logo=redis&logoColor=white)](https://redis.io/)
 
 Veridian is a Django REST Framework backend for a multi-tenant carbon emissions ingestion and analyst review platform.
 
@@ -20,6 +21,19 @@ The backend already includes:
 - DRF viewsets and endpoints for auth, clients, imports, summary, ingestion, and record review workflows.
 - A `seed_demo` management command that builds a realistic demo tenant and data set.
 - Repo-level design docs explaining the model layer, decisions, tradeoffs, and source assumptions.
+
+## Recent Additions
+
+The backend now also includes audit-oriented controls that make the platform suitable for traceable review and export:
+
+- Emission factor snapshots captured at approval time.
+- Duplicate-upload detection with SHA-256 file hashing and force override support.
+- Conversion logs on raw records for unit normalization transparency.
+- Dual-approval workflow for high-value records.
+- Import quality scoring with grade buckets.
+- Analyst comments on records with edit/delete ownership rules.
+- Auditor export endpoints for CSV and JSON output.
+- Hardened admin access for internal operations use.
 
 ## System Design
 
@@ -143,40 +157,67 @@ Tenant-aware endpoints require `?client=<slug>` unless the action is explicitly 
 
 ### Authentication
 
-- `POST /api/auth/login/`
+| Method | Path | Notes |
+| --- | --- | --- |
+| POST | `/api/auth/login/` | JWT login |
 
 ### Clients
 
-- `GET /api/clients/`
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/api/clients/` | List visible clients |
 
 ### Summary
 
-- `GET /api/summary/?client=<slug>`
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/api/summary/?client=<slug>` | Client summary plus import quality by source |
 
 ### Imports
 
-- `GET /api/imports/?client=<slug>`
-- `POST /api/imports/?client=<slug>`
-- `GET /api/imports/:id/`
-- `GET /api/imports/:id/preview/`
-- `POST /api/imports/:id/reingest/`
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/api/imports/?client=<slug>` | List import jobs |
+| POST | `/api/imports/?client=<slug>` | Upload and ingest a file |
+| GET | `/api/imports/:id/` | Import detail |
+| GET | `/api/imports/:id/preview/` | Raw file preview |
+| POST | `/api/imports/:id/reingest/` | Reprocess an existing import |
+| GET | `/api/imports/:id/records/?status=` | Records for one import job |
 
 ### Ingestion
 
-- `POST /api/ingest/sap/`
-- `POST /api/ingest/utility/`
-- `POST /api/ingest/travel/`
+| Method | Path | Notes |
+| --- | --- | --- |
+| POST | `/api/ingest/sap/` | SAP file ingest |
+| POST | `/api/ingest/utility/` | Utility file ingest |
+| POST | `/api/ingest/travel/` | Travel file ingest |
+| Query param | `?force=true` | Bypass duplicate-upload conflict |
 
 ### Records
 
-- `GET /api/records/?client=<slug>&source=&scope=&status=&date_from=&date_to=&page=&page_size=`
-- `GET /api/records/:id/`
-- `PATCH /api/records/:id/`
-- `POST /api/records/:id/approve/`
-- `POST /api/records/:id/reject/`
-- `POST /api/records/bulk-approve/`
-- `POST /api/records/bulk-reject/`
-- `DELETE /api/records/:id/flags/:flagId/`
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/api/records/?client=<slug>&source=&scope=&status=&date_from=&date_to=&page=&page_size=` | List records |
+| GET | `/api/records/:id/` | Record detail, including raw data, conversion log, flags, audit trail, and comments |
+| PATCH | `/api/records/:id/` | Edit a record before it is locked |
+| POST | `/api/records/:id/approve/` | Primary approval |
+| POST | `/api/records/:id/secondary-approve/` | Second approval for high-value records |
+| POST | `/api/records/:id/reject/` | Reject a record |
+| POST | `/api/records/bulk-approve/` | Bulk approval |
+| POST | `/api/records/bulk-reject/` | Bulk rejection |
+| DELETE | `/api/records/:id/flags/:flagId/` | Dismiss a flag |
+| GET | `/api/records/:id/factor-history/` | Compare snapshotted and current emission factor values |
+| GET | `/api/records/:id/comments/` | List comments for a record |
+| POST | `/api/records/:id/comments/` | Add a comment |
+| PATCH | `/api/records/:id/comments/:commentId/` | Edit your own comment |
+| DELETE | `/api/records/:id/comments/:commentId/` | Delete your own comment |
+
+### Auditor Export
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/api/export/?client=<slug>&from=YYYY-MM-DD&to=YYYY-MM-DD&format=csv` | CSV export of locked records |
+| GET | `/api/export/?client=<slug>&from=YYYY-MM-DD&to=YYYY-MM-DD&format=json` | JSON export of locked records |
 
 ## Seed Data
 
@@ -229,7 +270,6 @@ The current implementation is production-shaped, but there are deliberate gaps:
 
 - No PostgreSQL row-level security.
 - No fully wired async ingestion queue path.
-- No immutable snapshot of emission factor versions at approval time.
 
 Those tradeoffs are explained in [TRADEOFFS.md](backend/TRADEOFFS.md).
 
@@ -249,6 +289,7 @@ Implemented so far:
 - Parsers for SAP, utility, and travel sources.
 - Review APIs for records and imports.
 - Demo seed command.
+- Audit-grade approval, export, comment, and data-quality features.
 - Repo documentation.
 
 The next practical step is to install dependencies, run migrations, and verify the API against a real database.

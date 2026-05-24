@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
+
+from django.db.models import Avg
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -33,7 +37,27 @@ class ImportJobViewSet(TenantQuerysetMixin, viewsets.ModelViewSet):
         file_obj = request.FILES.get("raw_file") or request.data.get("raw_file")
         if not source_type or not file_obj:
             raise ValidationError({"source_type": "Required", "raw_file": "Required"})
-        job, total, successful, failed = ingest_source(client=client, source_type=source_type, uploaded_by=request.user, file_obj=file_obj)
+        force = _force_requested(request)
+        file_hash = _hash_uploaded_payload(file_obj)
+        duplicate = ImportJob.objects.filter(client=client, file_hash=file_hash).first()
+        if duplicate and not force:
+            return Response(
+                {
+                    "error": "duplicate_upload",
+                    "message": "This file has already been ingested.",
+                    "existing_import_id": str(duplicate.id),
+                    "existing_import_date": duplicate.uploaded_at.isoformat(),
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        job, total, successful, failed = ingest_source(
+            client=client,
+            source_type=source_type,
+            uploaded_by=request.user,
+            file_obj=file_obj,
+            file_hash=file_hash,
+            force_reason="operator override" if force else "",
+        )
         return Response({"import_job_id": str(job.id), "total": total, "successful": successful, "failed": failed}, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["get"])
@@ -76,7 +100,11 @@ class SummaryView(TenantQuerysetMixin, APIView):
         pending_review = NormalizedRecord.objects.filter(client=client, status__in=[NormalizedRecord.Status.PENDING, NormalizedRecord.Status.FLAGGED]).count()
         flagged_records = NormalizedRecord.objects.filter(client=client, status=NormalizedRecord.Status.FLAGGED).count()
         approved_locked = NormalizedRecord.objects.filter(client=client, status=NormalizedRecord.Status.APPROVED, locked=True).count()
-        return Response({"total_imports": total_imports, "pending_review": pending_review, "flagged_records": flagged_records, "approved_locked": approved_locked})
+        quality = {}
+        for source_type in (ImportJob.SourceType.SAP, ImportJob.SourceType.UTILITY, ImportJob.SourceType.TRAVEL):
+            average_quality = ImportJob.objects.filter(client=client, source_type=source_type, quality_score__isnull=False).aggregate(value=Avg("quality_score"))["value"]
+            quality[source_type] = {"avg_quality": round(float(average_quality), 2) if average_quality is not None else None, "grade": _quality_grade(average_quality)}
+        return Response({"total_imports": total_imports, "pending_review": pending_review, "flagged_records": flagged_records, "approved_locked": approved_locked, "quality_score": quality})
 
 
 class IngestSAPView(APIView):
@@ -92,7 +120,27 @@ class IngestSAPView(APIView):
             file_obj = request.data
         if not client or not file_obj:
             raise ValidationError({"client": "Required", "file": "Required"})
-        job, total, successful, failed = ingest_source(client=client, source_type=source_type, uploaded_by=request.user, file_obj=file_obj)
+        force = _force_requested(request)
+        file_hash = _hash_uploaded_payload(file_obj)
+        duplicate = ImportJob.objects.filter(client=client, file_hash=file_hash).first()
+        if duplicate and not force:
+            return Response(
+                {
+                    "error": "duplicate_upload",
+                    "message": "This file has already been ingested.",
+                    "existing_import_id": str(duplicate.id),
+                    "existing_import_date": duplicate.uploaded_at.isoformat(),
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        job, total, successful, failed = ingest_source(
+            client=client,
+            source_type=source_type,
+            uploaded_by=request.user,
+            file_obj=file_obj,
+            file_hash=file_hash,
+            force_reason="operator override" if force else "",
+        )
         return Response({"import_job_id": str(job.id), "total": total, "successful": successful, "failed": failed}, status=status.HTTP_201_CREATED)
 
 
@@ -117,3 +165,38 @@ def _client_from_request(request):
     if not (request.user.is_superuser or getattr(request.user, "is_staff", False) or (profile and profile.client_id == client.id)):
         raise ValidationError({"client": "You do not have access to this client"})
     return client
+
+
+def _force_requested(request) -> bool:
+    return str(request.query_params.get("force", "")).strip().lower() in {"1", "true", "yes"}
+
+
+def _hash_uploaded_payload(file_obj) -> str:
+    if isinstance(file_obj, dict):
+        payload = dict(file_obj)
+        payload.pop("client", None)
+        content = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+        return hashlib.sha256(content).hexdigest()
+    if hasattr(file_obj, "read"):
+        content = file_obj.read()
+        if hasattr(file_obj, "seek"):
+            file_obj.seek(0)
+        if isinstance(content, str):
+            content = content.encode("utf-8")
+        return hashlib.sha256(content).hexdigest()
+    if isinstance(file_obj, bytes):
+        return hashlib.sha256(file_obj).hexdigest()
+    return hashlib.sha256(str(file_obj).encode("utf-8")).hexdigest()
+
+
+def _quality_grade(score) -> str | None:
+    if score is None:
+        return None
+    value = float(score)
+    if value >= 0.9:
+        return "A"
+    if value >= 0.75:
+        return "B"
+    if value >= 0.6:
+        return "C"
+    return "D"
