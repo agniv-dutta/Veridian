@@ -2,27 +2,27 @@ import React from 'react'
 
 const GRADE_CONFIG = {
   A: {
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-800',
-    border: 'border-emerald-200',
+    bg: 'bg-[#ECFDF5]',
+    text: 'text-[#047857]',
+    border: 'border-[#A7F3D0]',
     interpretation: 'Clean import — ready for review',
   },
   B: {
-    bg: 'bg-teal-50',
-    text: 'text-teal-800',
-    border: 'border-teal-200',
+    bg: 'bg-[#E6F4F4]',
+    text: 'text-[#0D6E6E]',
+    border: 'border-[#BFE7E7]',
     interpretation: 'Minor issues — review flagged rows',
   },
   C: {
-    bg: 'bg-amber-50',
-    text: 'text-amber-800',
-    border: 'border-amber-200',
+    bg: 'bg-[#FFFBEB]',
+    text: 'text-[#92400E]',
+    border: 'border-[#FDE68A]',
     interpretation: 'Multiple issues — careful review needed',
   },
   D: {
-    bg: 'bg-red-50',
-    text: 'text-red-800',
-    border: 'border-red-200',
+    bg: 'bg-[#FEF2F2]',
+    text: 'text-[#B91C1C]',
+    border: 'border-[#FECACA]',
     interpretation: 'Significant problems — consider re-ingesting',
   },
 }
@@ -45,12 +45,13 @@ const QualityBadge = ({
     <div className={showInterpretation ? 'flex flex-col gap-1' : 'inline-flex'}>
       <span
         title={tooltipText}
-        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border cursor-default ${config.bg} ${config.text} ${config.border}`}
+        className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-medium cursor-default ${config.bg} ${config.text} ${config.border}`}
       >
-        {grade}{scoreDisplay && ` · ${scoreDisplay}`}
+        <span className="font-semibold">{grade}</span>
+        {scoreDisplay && <span className="text-[10px] opacity-80">{scoreDisplay}</span>}
       </span>
       {showInterpretation && (
-        <span className="text-[11px] font-medium text-gray-500 mt-0.5">
+        <span className="text-[11px] font-normal text-[var(--text-muted)] mt-0.5">
           {config.interpretation}
         </span>
       )}

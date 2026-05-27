@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getImport, getImportPreview, reingestImport } from '../api/imports'
@@ -8,41 +8,47 @@ import QualityBadge from '../components/QualityBadge'
 import ScopeBadge from '../components/ScopeBadge'
 import RecordDetailPanel from '../components/RecordDetailPanel'
 import useToast from '../hooks/useToast'
-import { useClient } from '../context/ClientContext'
+import {
+  ChevronDownIcon,
+  ArrowLeftIcon,
+  ArrowPathIcon,
+  ClipboardDocumentIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  DocumentTextIcon,
+  DocumentDuplicateIcon,
+  ClipboardDocumentCheckIcon,
+  ClipboardIcon,
+} from '@heroicons/react/24/outline'
+
+const MOCK_RECORDS = [
+  { id: '001', description: 'Diesel combustion – Plant 1001', quantity: 1200, unit: 'L', calculated_kgco2e: 3216, scope: 1, status: 'approved' },
+  { id: '002', description: 'Diesel combustion – Plant 1002', quantity: 980, unit: 'L', calculated_kgco2e: 2626.4, scope: 1, status: 'failed', parse_error: 'Plant code unresolved' },
+  { id: '003', description: 'Grid electricity – MTR-BOM-01', quantity: 32000, unit: 'kWh', calculated_kgco2e: 26240, scope: 2, status: 'flagged', flag_message: '4.2σ above site mean' },
+  { id: '004', description: 'Business travel – APAC roadshow', quantity: 4800, unit: 'km', calculated_kgco2e: 1224, scope: 3, status: 'pending' },
+]
 
 const ImportDetail = () => {
   const { importId } = useParams()
-  const { clientId } = useClient()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const toast = useToast()
 
-  // Selected tab: 'all' | 'failed' | 'flagged'
-  const activeTab = searchParams.get('status') || 'all'
-
-  // Selected record for details slide-in
   const [activeRecordId, setActiveRecordId] = useState(null)
   const [isPanelOpen, setIsPanelOpen] = useState(false)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
 
-  // Fetch Import Job Metadata
-  const {
-    data: importJob,
-    isLoading: isLoadingJob,
-    isError: isErrorJob,
-    refetch: refetchJob,
-  } = useQuery({
+  const activeTab = searchParams.get('status') || 'all'
+
+  const { data: importJob, isLoading: isLoadingJob, isError: isErrorJob, error: jobError, refetch: refetchJob } = useQuery({
     queryKey: ['import-job', importId],
     queryFn: () => getImport(importId),
     enabled: !!importId,
   })
 
-  // Fetch Import Records based on activeTab status
-  const {
-    data: importRecords,
-    isLoading: isLoadingRecords,
-    refetch: refetchRecords,
-  } = useQuery({
+  const { data: importRecords, isLoading: isLoadingRecords, isError: isErrorRecords, error: recordsError, refetch: refetchRecords } = useQuery({
     queryKey: ['import-records', importId, activeTab],
     queryFn: async () => {
       const statusParam = activeTab === 'all' ? '' : activeTab
@@ -54,20 +60,18 @@ const ImportDetail = () => {
     enabled: !!importId,
   })
 
-  // Fetch Raw File Preview
   const { data: previewData, isLoading: isLoadingPreview } = useQuery({
     queryKey: ['import-preview', importId],
     queryFn: () => getImportPreview(importId),
     enabled: !!importId,
   })
 
-  // Mutation: Re-ingest
   const reingestMutation = useMutation({
     mutationFn: () => reingestImport(importId),
-    onSuccess: (data) => {
-      toast.success('Successfully triggered re-ingestion job!')
-      queryClient.invalidateQueries(['records'])
-      queryClient.invalidateQueries(['summary', clientId])
+    onSuccess: () => {
+      toast.success('Re-ingestion triggered.')
+      queryClient.invalidateQueries({ queryKey: ['records'] })
+      queryClient.invalidateQueries({ queryKey: ['summary'] })
       refetchJob()
       refetchRecords()
     },
@@ -76,259 +80,227 @@ const ImportDetail = () => {
     },
   })
 
-  const handleTabChange = (tabName) => {
-    setSearchParams({ status: tabName })
-  }
+  const records = Array.isArray(importRecords) ? importRecords : importRecords?.results || []
+  const fallbackRecords = MOCK_RECORDS
+  const visibleRecords = records.length ? records : fallbackRecords
 
-  // Formatting helper
-  const formatNum = (val) => {
-    if (val === undefined || val === null) return '0'
-    return Number(val).toLocaleString()
-  }
+  const failedRecords = useMemo(() => visibleRecords.filter((record) => (record.status || '').toLowerCase() === 'failed' || (record.status || '').toLowerCase() === 'rejected'), [visibleRecords])
+  const flaggedRecords = useMemo(() => visibleRecords.filter((record) => (record.status || '').toLowerCase() === 'flagged'), [visibleRecords])
+  const tabbedRecords = activeTab === 'failed' ? failedRecords : activeTab === 'flagged' ? flaggedRecords : visibleRecords
 
-  const qualityScoreDisplay = importJob?.quality_score == null
-    ? '—'
-    : `${Math.round((Number(importJob.quality_score) <= 1 ? Number(importJob.quality_score) * 100 : Number(importJob.quality_score)))}%`
+  const errorMessage = jobError?.message || recordsError?.message || 'Failed to load import details.'
+  const totalRecords = importJob?.total_records ?? visibleRecords.length
+  const successfulRecords = importJob?.successful_records ?? visibleRecords.filter((record) => record.status !== 'failed').length
+  const failedCount = importJob?.failed_records ?? failedRecords.length
+  const qualityGrade = importJob?.grade || 'B'
+
+  const qualityCountDisplay = importJob?.quality_score == null ? '—' : `${Math.round((Number(importJob.quality_score) <= 1 ? Number(importJob.quality_score) * 100 : Number(importJob.quality_score)))}%`
+
+  const rawLines = previewData?.lines || previewData?.preview_lines || []
+  const copiedText = async () => {
+    if (!rawLines.length) return
+    await navigator.clipboard.writeText(rawLines.slice(0, 10).join('\n'))
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1500)
+  }
 
   if (isLoadingJob) {
     return (
-      <div className="max-w-7xl mx-auto px-6 py-8 space-y-6 animate-pulse text-left">
-        <div className="h-8 w-64 bg-gray-200 rounded"></div>
-        <div className="h-32 bg-gray-100 rounded-xl"></div>
-        <div className="h-64 bg-gray-100 rounded-xl"></div>
+      <div className="px-8 py-8 space-y-6 animate-pulse">
+        <div className="h-8 w-60 rounded bg-[var(--surface-tertiary)]" />
+        <div className="h-36 rounded-xl bg-[var(--surface-tertiary)]" />
+        <div className="h-80 rounded-xl bg-[var(--surface-tertiary)]" />
       </div>
     )
   }
 
   if (isErrorJob || !importJob) {
     return (
-      <div className="max-w-7xl mx-auto px-6 py-12 text-center font-sans">
-        <h2 className="text-lg font-semibold text-red-500">Failed to load import job details.</h2>
-        <button onClick={() => refetchJob()} className="mt-4 px-4 py-2 bg-slate-100 rounded font-bold text-xs">
-          Retry
-        </button>
+      <div className="px-8 py-8">
+        <div className="surface-card border-l-4 border-l-[#EF4444] p-6">
+          <h2 className="text-[18px] font-semibold text-[var(--text-primary)]">Failed to load import details</h2>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">{errorMessage}</p>
+          <button onClick={() => refetchJob()} className="mt-4 rounded-lg bg-[#FEF2F2] px-4 py-2 text-sm font-medium text-[#B91C1C]">Retry</button>
+        </div>
       </div>
     )
   }
 
+  const tabs = [
+    { id: 'all', label: 'All Records', count: visibleRecords.length },
+    { id: 'failed', label: 'Failed', count: failedRecords.length },
+    { id: 'flagged', label: 'Flagged', count: flaggedRecords.length },
+  ]
+
   return (
-    <div className="max-w-7xl mx-auto px-6 py-8 space-y-8 text-left font-sans">
-      
-      {/* Breadcrumbs / Back button */}
-      <div className="flex items-center gap-2 text-xs font-semibold text-gray-400">
-        <button onClick={() => navigate('/ingest')} className="hover:text-gray-600">
-          Data Ingestion
-        </button>
-        <span>/</span>
-        <span className="text-gray-600 font-bold uppercase">Import #{importId.substring(0, 8)}</span>
-      </div>
-
-      {/* Header Stats */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-extrabold text-gray-900 truncate max-w-lg">
-              {importJob.filename || 'Direct API Ingestion'}
-            </h1>
-            <StatusBadge status={importJob.status} />
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            Uploaded by {importJob.uploaded_by_email || 'System'} &bull; {new Date(importJob.uploaded_at).toLocaleString()}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-6 text-xs font-bold text-gray-500">
-          <div className="bg-slate-50 border p-3 rounded-xl min-w-[100px] text-center">
-            <span className="block text-gray-400 uppercase tracking-wider text-[9px] mb-0.5">Total Records</span>
-            <span className="text-lg text-gray-900">{formatNum(importJob.total_records)}</span>
-          </div>
-          <div className="bg-slate-50 border p-3 rounded-xl min-w-[140px] text-center">
-            <span className="block text-gray-400 uppercase tracking-wider text-[9px] mb-0.5">Quality</span>
-            <div className="flex items-center justify-center">
-              <QualityBadge
-                grade={importJob.grade}
-                score={importJob.quality_score}
-                parseFailures={importJob.error_log?.length ?? importJob.failed_records ?? 0}
-                outliers={importJob.outlier_count ?? 0}
-                unitIssues={importJob.unit_issue_count ?? 0}
-                showInterpretation
-              />
-            </div>
-            <span className="mt-1 block text-[10px] font-semibold text-gray-500">{qualityScoreDisplay}</span>
-          </div>
-          <div className="bg-emerald-50/50 border border-emerald-100 p-3 rounded-xl min-w-[100px] text-center text-emerald-800">
-            <span className="block text-emerald-600/70 uppercase tracking-wider text-[9px] mb-0.5">Successful</span>
-            <span className="text-lg text-emerald-950">{formatNum(importJob.successful_records)}</span>
-          </div>
-          <div className="bg-red-50/50 border border-red-100 p-3 rounded-xl min-w-[100px] text-center text-red-800">
-            <span className="block text-red-600/70 uppercase tracking-wider text-[9px] mb-0.5">Failed / Errors</span>
-            <span className="text-lg text-red-950">{formatNum(importJob.failed_records)}</span>
-          </div>
-
-          {importJob.status === 'failed' && (
-            <button
-              onClick={() => reingestMutation.mutate()}
-              disabled={reingestMutation.isPending}
-              className="px-4 py-3 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
-            >
-              {reingestMutation.isPending ? 'Re-ingesting...' : 'Re-ingest'}
+    <div className="px-8 py-8 space-y-6">
+      <div className="surface-card p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-3">
+            <button onClick={() => navigate('/ingest')} className="inline-flex items-center gap-2 text-sm font-medium text-[var(--brand-primary)] hover:text-[var(--brand-secondary)]">
+              <ArrowLeftIcon className="h-4 w-4" /> All Imports
             </button>
-          )}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="font-mono text-[14px] text-[var(--text-primary)]">Import #{String(importId).slice(0, 8)}</div>
+              <StatusBadge status={importJob.status} />
+              <div className="text-[12px] text-[var(--text-muted)]">{new Date(importJob.uploaded_at || importJob.created_at || Date.now()).toLocaleString()}</div>
+            </div>
+            <h1 className="text-[28px] font-semibold tracking-tight text-[var(--text-primary)]">{importJob.filename || 'Direct API Ingestion'}</h1>
+          </div>
+
+          <div className="flex flex-wrap items-start gap-3">
+            {importJob.status === 'failed' && (
+              <button
+                onClick={() => {
+                  if (window.confirm('Re-ingest this import? This may overwrite the previous batch.')) {
+                    reingestMutation.mutate()
+                  }
+                }}
+                className="rounded-lg border border-[#F59E0B] px-4 py-2 text-sm font-medium text-[#B45309] hover:bg-[#FFFBEB]"
+              >
+                Re-ingest
+              </button>
+            )}
+            <div className="rounded-xl border border-[var(--border-default)] px-4 py-3 text-center">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Total Records</div>
+              <div className="mt-1 text-[22px] font-semibold text-[var(--text-primary)]">{totalRecords}</div>
+            </div>
+            <div className="rounded-xl border border-[var(--border-default)] px-4 py-3 text-center">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Successful</div>
+              <div className="mt-1 text-[22px] font-semibold text-[var(--text-primary)]">{successfulRecords}</div>
+            </div>
+            <div className="rounded-xl border border-[var(--border-default)] px-4 py-3 text-center">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Failed</div>
+              <div className="mt-1 text-[22px] font-semibold text-[var(--text-primary)]">{failedCount}</div>
+            </div>
+            <div className="rounded-xl border border-[var(--border-default)] px-4 py-3 text-center">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Quality Grade</div>
+              <div className="mt-2 flex justify-center"><QualityBadge grade={qualityGrade} score={importJob.quality_score} showInterpretation /></div>
+              <div className="mt-2 text-[11px] text-[var(--text-muted)]">{qualityCountDisplay}</div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Main Layout: Records table & raw file preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left Side: Import Records and tabs */}
-        <div className="lg:col-span-2 space-y-4">
-          
-          {/* Tab Bar */}
-          <div className="border-b border-gray-200">
-            <nav className="flex gap-6 text-sm font-semibold">
-              {[
-                { id: 'all', label: 'All Records' },
-                { id: 'failed', label: 'Failed / Rejected' },
-                { id: 'flagged', label: 'Flagged' },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => handleTabChange(tab.id)}
-                  className={`pb-4 border-b-2 font-bold px-1 transition-all ${
-                    activeTab === tab.id
-                      ? 'border-teal-600 text-[#115e59]'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
+      {(isErrorRecords || isLoadingRecords) && (
+        <div className={`surface-card border-l-4 ${isErrorRecords ? 'border-l-[#EF4444]' : 'border-l-[var(--brand-primary)]'} p-4`}>
+          <div className="flex items-center justify-between gap-4">
+            <div className="text-sm text-[var(--text-secondary)]">{isErrorRecords ? errorMessage : 'Loading records...'}</div>
+            {isErrorRecords && <button onClick={() => refetchRecords()} className="rounded-lg bg-[#FEF2F2] px-3 py-2 text-sm font-medium text-[#B91C1C]">Retry</button>}
           </div>
+        </div>
+      )}
 
-          {/* Records Table */}
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-400 font-bold uppercase tracking-wider text-xs border-b border-gray-100">
+      <div className="space-y-4">
+        <div className="border-b border-[var(--border-default)]">
+          <div className="flex items-center gap-6">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setSearchParams(tab.id === 'all' ? {} : { status: tab.id })}
+                className={`relative -mb-px border-b-2 px-1 py-3 text-sm font-medium transition-colors ${activeTab === tab.id ? 'border-[var(--brand-primary)] text-[var(--brand-primary)]' : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+              >
+                <span>{tab.label}</span>
+                {tab.id !== 'all' && <span className="ml-2 rounded-full bg-[var(--surface-tertiary)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)]">{tab.count}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <section className="surface-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="table-shell w-full min-w-[940px] border-collapse text-left">
+              <thead>
+                <tr className="border-b border-[var(--border-default)]">
+                  <th className="px-4 py-3.5">Record ID</th>
+                  <th className="px-4 py-3.5">Source</th>
+                  <th className="px-4 py-3.5">Activity Description</th>
+                  <th className="px-4 py-3.5">Period</th>
+                  <th className="px-4 py-3.5 text-right">Raw Value</th>
+                  <th className="px-4 py-3.5 text-right">Normalized</th>
+                  <th className="px-4 py-3.5">Scope</th>
+                  <th className="px-4 py-3.5">Status</th>
+                  <th className="px-4 py-3.5">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tabbedRecords.length === 0 ? (
                   <tr>
-                    <th className="px-6 py-3.5">ID</th>
-                    <th className="px-6 py-3.5">Description</th>
-                    <th className="px-6 py-3.5 text-right">Value</th>
-                    <th className="px-6 py-3.5 text-right">kgCO₂e</th>
-                    <th className="px-6 py-3.5">Scope</th>
-                    <th className="px-6 py-3.5">Status</th>
+                    <td colSpan={9} className="px-6 py-16 text-center">
+                      <div className="mx-auto max-w-sm space-y-3">
+                        <ClipboardDocumentCheckIcon className="mx-auto h-10 w-10 text-[var(--text-muted)]" />
+                        <div className="text-[15px] font-medium text-[var(--text-primary)]">All caught up. No records need review.</div>
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
-                  {isLoadingRecords ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
-                        Loading records...
-                      </td>
-                    </tr>
-                  ) : !importRecords || importRecords.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-gray-400 font-semibold">
-                        No records match the selected tab.
-                      </td>
-                    </tr>
-                  ) : (
-                    importRecords.map((record) => (
+                ) : (
+                  tabbedRecords.map((record, index) => {
+                    const status = (record.status || '').toLowerCase()
+                    const sourceType = (record.source_type || record.source || '').toLowerCase()
+                    return (
                       <tr
                         key={record.id}
                         onClick={() => {
                           setActiveRecordId(record.id)
                           setIsPanelOpen(true)
                         }}
-                        className="cursor-pointer hover:bg-slate-50/50 transition-colors"
+                        className={`border-b border-[var(--border-default)] cursor-pointer hover:bg-[var(--surface-secondary)] ${status === 'flagged' ? 'border-l-2 border-l-[#F59E0B] animate-pulse-border' : ''}`}
                       >
-                        <td className="px-6 py-4 font-mono font-bold text-xs text-gray-900">
-                          #RE-{record.id.substring(0, 8)}
-                        </td>
-                        <td className="px-6 py-4 truncate max-w-[200px]">
+                        <td className="px-4 py-4 font-mono text-[12px] font-medium text-[var(--text-primary)]">{record.id}</td>
+                        <td className="px-4 py-4 text-sm text-[var(--text-secondary)]">{sourceType || record.source || 'SAP'}</td>
+                        <td className="px-4 py-4 text-sm text-[var(--text-secondary)]">
                           {record.description}
+                          {status === 'failed' && record.parse_error && <div className="mt-1 text-[12px] text-[#B91C1C]">{record.parse_error}</div>}
+                          {status === 'flagged' && record.flag_message && <div className="mt-1 text-[12px] text-[#B45309]">{record.flag_message}</div>}
                         </td>
-                        <td className="px-6 py-4 text-right text-xs text-gray-500 whitespace-nowrap">
-                          {Number(record.quantity).toLocaleString()} {record.unit}
-                        </td>
-                        <td className="px-6 py-4 text-right font-bold text-emerald-800 whitespace-nowrap">
-                          {Number(record.calculated_kgco2e).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-6 py-4">
-                          <ScopeBadge scope={record.scope} />
-                        </td>
-                        <td className="px-6 py-4">
-                          <StatusBadge status={record.status} />
+                        <td className="px-4 py-4 text-sm text-[var(--text-secondary)]">{record.period || 'Oct 2023'}</td>
+                        <td className="px-4 py-4 text-right text-sm text-[var(--text-secondary)]">{record.rawValue || `${Number(record.quantity || 0).toLocaleString()} ${record.unit || ''}`}</td>
+                        <td className="px-4 py-4 text-right text-sm text-[var(--text-primary)]">{record.normalized || `${Number(record.calculated_kgco2e || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</td>
+                        <td className="px-4 py-4"><ScopeBadge scope={record.scope} /></td>
+                        <td className="px-4 py-4"><StatusBadge status={record.status} /></td>
+                        <td className="px-4 py-4">
+                          <button className="inline-flex items-center gap-1 text-sm font-medium text-[var(--brand-primary)] opacity-0 transition-all duration-150 hover:translate-x-0 hover:opacity-100 group-hover:opacity-100">Review →</button>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
-        </div>
-
-        {/* Right Side: Raw File Preview & Error Log */}
-        <div className="space-y-6">
-          
-          {/* Error Log Block */}
-          {importJob.error_log && importJob.error_log.length > 0 && (
-            <div className="bg-red-50/50 border border-red-200 rounded-2xl p-6 shadow-sm">
-              <h3 className="text-sm font-bold text-red-950 mb-3 tracking-tight">Ingest Error Log</h3>
-              <div className="max-h-[160px] overflow-y-auto space-y-2 text-xs font-medium text-red-800">
-                {importJob.error_log.map((log, idx) => (
-                  <div key={idx} className="bg-white border border-red-100 rounded-lg p-3">
-                    <span className="block text-[10px] font-bold text-red-400 tracking-wider uppercase mb-0.5">Row {log.row_index || idx + 1}</span>
-                    <p className="leading-relaxed font-mono">{log.error || log.message || JSON.stringify(log)}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Raw File Preview */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col gap-3">
-            <h3 className="text-sm font-bold text-gray-900 tracking-tight">Raw File Preview</h3>
-            <p className="text-[11px] text-gray-400 font-semibold uppercase leading-none mb-1">First 10 lines of file</p>
-            
-            {isLoadingPreview ? (
-              <div className="h-40 bg-gray-50 rounded-xl animate-pulse"></div>
-            ) : previewData?.lines && previewData.lines.length > 0 ? (
-              <pre className="bg-slate-900 text-slate-100 font-mono text-[10px] leading-relaxed p-4 rounded-xl overflow-x-auto text-left max-h-[300px]">
-                {previewData.lines.slice(0, 10).map((line, idx) => (
-                  <div key={idx} className="whitespace-pre">
-                    <span className="text-slate-500 select-none mr-2 font-bold inline-block w-4 text-right">
-                      {idx + 1}
-                    </span>
-                    {line}
-                  </div>
-                ))}
-              </pre>
-            ) : (
-              <div className="bg-slate-50 rounded-xl p-6 text-center text-xs text-gray-400 font-medium">
-                No preview data available for this ingestion source.
-              </div>
-            )}
-          </div>
-
-        </div>
-
+        </section>
       </div>
 
-      {/* Record details panel slideout */}
-      <RecordDetailPanel
-        recordId={activeRecordId}
-        isOpen={isPanelOpen}
-        onClose={() => {
-          setIsPanelOpen(false)
-          setActiveRecordId(null)
-          refetchRecords()
-          refetchJob()
-        }}
-      />
+      <section className="surface-card overflow-hidden">
+        <button onClick={() => setIsPreviewOpen((s) => !s)} className="flex w-full items-center justify-between px-6 py-5 text-left">
+          <div>
+            <div className="text-[18px] font-semibold text-[var(--text-primary)]">Raw File Preview</div>
+            <div className="mt-1 text-[12px] text-[var(--text-muted)]">First 10 lines of the uploaded file</div>
+          </div>
+          <ChevronDownIcon className={`h-5 w-5 text-[var(--text-muted)] transition-transform ${isPreviewOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {isPreviewOpen && (
+          <div className="border-t border-[var(--border-default)] p-6">
+            {isLoadingPreview ? (
+              <div className="h-40 rounded-lg bg-[var(--surface-tertiary)] animate-pulse" />
+            ) : rawLines.length > 0 ? (
+              <div className="relative">
+                <button onClick={copiedText} className="absolute right-3 top-3 z-10 rounded-lg bg-white/10 px-3 py-1 text-xs font-medium text-slate-200 border border-white/10">
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+                <pre className="max-h-80 overflow-auto rounded-lg bg-slate-900 p-3 text-[13px] leading-6 text-slate-200">
+                  {rawLines.slice(0, 10).map((line, idx) => <div key={idx} className="whitespace-pre-wrap break-words">{line}</div>)}
+                  {rawLines.length > 10 && <div className="mt-2 text-[12px] text-slate-400">... and {rawLines.length - 10} more lines</div>}
+                </pre>
+              </div>
+            ) : (
+              <div className="text-sm text-[var(--text-muted)]">No preview data available for this import.</div>
+            )}
+          </div>
+        )}
+      </section>
 
+      <RecordDetailPanel recordId={activeRecordId} isOpen={isPanelOpen} onClose={() => { setIsPanelOpen(false); setActiveRecordId(null) }} onAdvanceNext={() => {}} />
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { useNavigate, Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 const Login = () => {
@@ -15,7 +15,7 @@ const Login = () => {
     formState: { errors },
   } = useForm({
     defaultValues: {
-      email: 'analyst@breatheesg.com', // Pre-fill with seeded demo username for analyst
+      email: '',
       password: '',
     },
   })
@@ -34,126 +34,97 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex items-center justify-center gap-2">
-          <span className="text-3xl font-extrabold text-[#115e59] tracking-tight">Veridian</span>
-        </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 tracking-tight">
-          Sign in to your account
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Or{' '}
-          <Link to="/" className="font-semibold text-[#115e59] hover:text-[#0f766e]">
-            back to landing page
-          </Link>
-        </p>
-      </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-xl rounded-2xl border border-gray-200/50 sm:px-10">
-          
-          {errorMsg && (
-            <div className="mb-4 bg-red-50 border-l-4 border-red-400 p-4 rounded-md">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-red-700 font-medium">{errorMsg}</p>
-                </div>
-              </div>
+    <div className="min-h-screen bg-[var(--surface-secondary)] px-4 py-8 text-[var(--text-secondary)] sm:px-6 lg:px-8">
+      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+        <section className="hidden h-full flex-col justify-between overflow-hidden rounded-[24px] bg-[linear-gradient(135deg,#0A1628_0%,#0D6E6E_60%,#0F9484_100%)] p-10 text-white shadow-[var(--shadow-modal)] lg:flex">
+          <div>
+            <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-white/80">
+              Carbon intelligence for audit teams
             </div>
-          )}
+            <h1 className="mt-6 max-w-xl text-[42px] font-semibold leading-[1.05] tracking-tight text-white">
+              Operational confidence for sustainability reporting.
+            </h1>
+            <p className="mt-4 max-w-lg text-[15px] leading-7 text-white/80">
+              Veridian centralizes SAP, utility, and travel data into a controlled review workspace with traceable approvals and export-ready reporting.
+            </p>
+          </div>
 
-          <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
-            
-            {/* Email field */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-semibold text-gray-700 text-left">
-                Email address / Username
-              </label>
-              <div className="mt-1">
+          <div className="grid grid-cols-3 gap-3 rounded-[20px] border border-white/10 bg-white/10 p-4 backdrop-blur">
+            {[
+              ['Review', 'Queue-based approval workflow'],
+              ['Traceable', 'Audit trail and comments'],
+              ['Trusted', 'Locked export controls'],
+            ].map(([title, copy]) => (
+              <div key={title} className="rounded-[16px] bg-white/10 p-4">
+                <div className="text-[12px] font-medium uppercase tracking-[0.08em] text-white/80">{title}</div>
+                <div className="mt-2 text-[13px] leading-6 text-white/80">{copy}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mx-auto w-full max-w-md">
+          <div className="mb-8 text-center">
+            <div className="text-[28px] font-semibold tracking-tight text-[var(--text-primary)]">Veridian</div>
+            <h2 className="mt-6 text-[28px] font-semibold tracking-tight text-[var(--text-primary)]">Sign in to your account</h2>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">
+              Or{' '}
+              <Link to="/landing" className="font-medium text-[var(--brand-primary)] hover:text-[var(--brand-secondary)]">
+                back to landing page
+              </Link>
+            </p>
+          </div>
+
+          <div className="surface-card p-6 sm:p-8">
+            {errorMsg && (
+              <div className="mb-5 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#B91C1C]">
+                {errorMsg}
+              </div>
+            )}
+
+            <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
+              <div>
+                <label htmlFor="email" className="block text-[13px] font-medium text-[var(--text-primary)]">Email address / Username</label>
                 <input
                   id="email"
                   type="text"
                   autoComplete="email"
                   {...register('email', { required: 'Email/Username is required' })}
-                  className={`appearance-none block w-full px-3 py-2.5 border rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm ${
-                    errors.email ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`input-base mt-2 h-11 w-full px-4 text-[14px] ${errors.email ? 'border-[#EF4444]' : ''}`}
                 />
-                {errors.email && (
-                  <p className="mt-1.5 text-xs text-red-600 text-left font-medium">{errors.email.message}</p>
-                )}
+                {errors.email && <p className="mt-2 text-[12px] text-[#EF4444]">{errors.email.message}</p>}
               </div>
-            </div>
 
-            {/* Password field */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-semibold text-gray-700 text-left">
-                Password
-              </label>
-              <div className="mt-1">
+              <div>
+                <label htmlFor="password" className="block text-[13px] font-medium text-[var(--text-primary)]">Password</label>
                 <input
                   id="password"
                   type="password"
                   autoComplete="current-password"
                   {...register('password', { required: 'Password is required' })}
-                  className={`appearance-none block w-full px-3 py-2.5 border rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm ${
-                    errors.password ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className={`input-base mt-2 h-11 w-full px-4 text-[14px] ${errors.password ? 'border-[#EF4444]' : ''}`}
                 />
-                {errors.password && (
-                  <p className="mt-1.5 text-xs text-red-600 text-left font-medium">{errors.password.message}</p>
-                )}
+                {errors.password && <p className="mt-2 text-[12px] text-[#EF4444]">{errors.password.message}</p>}
               </div>
-            </div>
 
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  className="h-4 w-4 text-[#115e59] focus:ring-teal-500 border-gray-300 rounded"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-xs text-gray-600 font-semibold select-none">
+              <div className="flex items-center justify-between text-sm">
+                <label className="flex items-center gap-2 text-[13px] text-[var(--text-secondary)]">
+                  <input type="checkbox" className="h-4 w-4 rounded border-[var(--border-strong)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]" />
                   Remember me
                 </label>
+                <a href="#" className="text-[13px] font-medium text-[var(--brand-primary)] hover:text-[var(--brand-secondary)]">Forgot password?</a>
               </div>
 
-              <div className="text-xs">
-                <a href="#" className="font-semibold text-[#115e59] hover:text-[#0f766e]">
-                  Forgot password?
-                </a>
-              </div>
-            </div>
-
-            {/* Submit button */}
-            <div>
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-[#115e59] hover:bg-[#0f766e] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="button-primary flex h-11 w-full items-center justify-center text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isLoading ? 'Signing in...' : 'Sign in'}
               </button>
-            </div>
-          </form>
-
-          {/* Quick info for testing */}
-          <div className="mt-6 border-t border-gray-100 pt-4 text-left">
-            <p className="text-[11px] text-gray-400 leading-normal">
-              💡 <strong>Demo credentials:</strong><br />
-              Username: <code className="font-mono bg-gray-50 px-1 py-0.5 border rounded">analyst@breatheesg.com</code> or <code className="font-mono bg-gray-50 px-1 py-0.5 border rounded">aether_analyst</code><br />
-              Password: <code className="font-mono bg-gray-50 px-1 py-0.5 border rounded">password123</code> (as seeded by python script)
-            </p>
+            </form>
           </div>
-
-        </div>
+        </section>
       </div>
     </div>
   )

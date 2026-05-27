@@ -1,0 +1,223 @@
+{
+  "export_date": "2024-01-10",
+  "account_id": "AETHER-ENT-001",
+  "trips": [
+    {
+      "tripId": "TRP-10001",
+      "traveler": {
+        "employeeId": "E001",
+        "name": "Rahul Mehta",
+        "department": "Operations",
+        "costCenter": "CC-OPS-01"
+      },
+      "segments": [
+        {
+          "segmentType": "AIR",
+          "flightNumber": "AI101",
+          "departureAirport": "BOM",
+          "arrivalAirport": "DEL",
+          "departureDate": "2023-10-05",
+          "cabinClass": "Economy",
+          "distanceKm": null
+        },
+        {
+          "segmentType": "HOTEL",
+          "city": "Delhi",
+          "hotelName": "The Imperial Delhi",
+          "checkIn": "2023-10-05",
+          "checkOut": "2023-10-07"
+        },
+        {
+          "segmentType": "CAR",
+          "city": "Delhi",
+          "serviceType": "City Transfer",
+          "pickupDate": "2023-10-06",
+          "distanceKm": 45
+        }
+      ]
+    },
+    {
+      "tripId": "TRP-10002",
+      "traveler": {
+        "employeeId": "E002",
+        "name": "Ananya Kapoor",
+        "department": "Operations",
+        "costCenter": "CC-OPS-01"
+      },
+      "segments": [
+        {
+          "segmentType": "AIR",
+          "flightNumber": "BA138",
+          "departureAirport": "BOM",
+          "arrivalAirport": "LHR",
+          "departureDate": "2023-10-18",
+          "cabinClass": "Business",
+          "distanceKm": null
+        },
+        {
+          "segmentType": "HOTEL",
+          "city": "London",
+          "hotelName": "Hilton London Metropole",
+          "checkIn": "2023-10-19",
+          "checkOut": "2023-10-22",
+          "nights": 3
+        },
+        {
+          "segmentType": "CAR",
+          "city": "London",
+          "serviceType": "Airport Transfer",
+          "pickupDate": "2023-10-19",
+          "distanceKm": 28
+        }
+      ]
+    },
+    {
+      "tripId": "TRP-10003",
+      "traveler": {
+        "employeeId": "E003",
+        "name": "Vikram Singh",
+        "department": "Operations",
+        "costCenter": "CC-OPS-01"
+      },
+      "segments": [
+        {
+          "segmentType": "AIR",
+          "flightNumber": "EK501",
+          "departureAirport": "DEL",
+          "arrivalAirport": "DXB",
+          "departureDate": "2023-11-02",
+          "cabinClass": "Economy",
+          "distanceKm": 2194
+        },
+        {
+          "segmentType": "HOTEL",
+          "city": "Dubai",
+          "hotelName": "JW Marriott Marquis Dubai",
+          "checkIn": "2023-11-02",
+          "checkOut": "2023-11-03",
+          "nights": 1
+        },
+        {
+          "segmentType": "RAIL",
+          "trainNumber": "12952",
+          "departureStation": "NDLS",
+          "arrivalStation": "BCT",
+          "departureDate": "2023-11-05",
+          "class": "AC First",
+          "distanceKm": 1400
+        }
+      ]
+    },
+    {
+      "tripId": "TRP-10004",
+      "traveler": {
+        "employeeId": "E004",
+        "name": "Sneha Iyer",
+        "department": "Operations",
+        "costCenter": "CC-OPS-01"
+      },
+      "segments": [
+        {
+          "segmentType": "AIR",
+          "flightNumber": "SQ423",
+          "departureAirport": "BOM",
+          "arrivalAirport": "SIN",
+          "departureDate": "2023-11-15",
+          "cabinClass": "Economy",
+          "distanceKm": null
+        },
+        {
+          "segmentType": "HOTEL",
+          "city": "Singapore",
+          "hotelName": "Marina Bay Sands",
+          "checkIn": "2023-11-15",
+          "checkOut": "2023-11-17",
+          "nights": 2
+        },
+        {
+          "segmentType": "CAR",
+          "city": "Mumbai",
+          "serviceType": "Local Rental",
+          "pickupDate": "2023-11-20",
+          "distanceKm": null
+        }
+      ]
+    },
+    {
+      "tripId": "TRP-10005",
+      "traveler": {
+        "employeeId": "E005",
+        "name": "Arjun Nair",
+        "department": "Operations",
+        "costCenter": "CC-OPS-01"
+      },
+      "segments": [
+        {
+          "segmentType": "AIR",
+          "flightNumber": "VS004",
+          "departureAirport": "LHR",
+          "arrivalAirport": "JFK",
+          "departureDate": "2023-12-03",
+          "cabinClass": "Business",
+          "distanceKm": null
+        },
+        {
+          "segmentType": "AIR",
+          "flightNumber": "AI866",
+          "departureAirport": "DEL",
+          "arrivalAirport": "BOM",
+          "departureDate": "2023-12-10",
+          "cabinClass": "Economy",
+          "distanceKm": null
+        },
+        {
+          "segmentType": "RAIL",
+          "trainNumber": "GWR221",
+          "departureStation": "London Paddington",
+          "arrivalStation": "Birmingham",
+          "departureDate": "2023-12-05",
+          "class": "Standard",
+          "distanceKm": 188
+        }
+      ]
+    },
+    {
+      "tripId": "TRP-10006",
+      "traveler": {
+        "employeeId": "E006",
+        "name": "Priya Deshmukh",
+        "department": "Operations",
+        "costCenter": "CC-OPS-01"
+      },
+      "segments": [
+        {
+          "segmentType": "AIR",
+          "flightNumber": "QF900",
+          "departureAirport": "XYZ",
+          "arrivalAirport": "SIN",
+          "departureDate": "2023-12-12",
+          "cabinClass": "Economy",
+          "distanceKm": null
+        },
+        {
+          "segmentType": "AIR",
+          "flightNumber": "LH761",
+          "departureAirport": "BOM",
+          "arrivalAirport": "FRA",
+          "departureDate": "2023-12-18",
+          "cabinClass": "First",
+          "distanceKm": null
+        },
+        {
+          "segmentType": "AIR",
+          "flightNumber": "AI677",
+          "departureAirport": "BOM",
+          "arrivalAirport": "DEL",
+          "departureDate": "2023-12-22",
+          "cabinClass": "Economy",
+          "distanceKm": null
+        }
+      ]
+    }
+  ]
+}

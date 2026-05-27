@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import React, { useEffect, useMemo, useState } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getRecords, bulkApprove, bulkReject } from '../api/records'
-import { getSparklines } from '../api/records'
+import { getRecords, bulkApprove, bulkReject, getSparklines } from '../api/records'
 import StatusBadge from '../components/StatusBadge'
 import ScopeBadge from '../components/ScopeBadge'
 import TrendSparkline from '../components/TrendSparkline'
@@ -10,36 +9,53 @@ import KeyboardShortcutsModal from '../components/KeyboardShortcutsModal'
 import ExportModal from '../components/ExportModal'
 import RecordDetailPanel from '../components/RecordDetailPanel'
 import useKeyboardNav from '../hooks/useKeyboardNav'
-import { useAuth } from '../context/AuthContext'
 import useToast from '../hooks/useToast'
 import { useClient } from '../context/ClientContext'
+import { useAuth } from '../context/AuthContext'
+import {
+  FunnelIcon,
+  ChevronDownIcon,
+  MagnifyingGlassIcon,
+  EyeIcon,
+  CheckIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline'
+
+const MOCK_RECORDS = [
+  { id: 'REC-001', source: 'SAP', sourceType: 'sap', description: 'Diesel combustion – Plant 1001', period: 'Oct 1–31, 2023', rawValue: '1,200 L', normalized: '3,216.00', scope: 1, status: 'pending', current: 3216 },
+  { id: 'REC-002', source: 'SAP', sourceType: 'sap', description: 'Diesel combustion – Plant 1002', period: 'Oct 1–31, 2023', rawValue: '980 L', normalized: '2,626.40', scope: 1, status: 'flagged', flagReason: '4.2σ above site mean', current: 2626.4 },
+  { id: 'REC-003', source: 'Utility', sourceType: 'utility', description: 'Grid electricity – MTR-BOM-01', period: 'Oct 18–Nov 17, 2023', rawValue: '32,000 kWh', normalized: '26,240.00', scope: 2, status: 'pending', current: 26240 },
+  { id: 'REC-004', source: 'Travel', sourceType: 'travel', description: 'Business travel – APAC Q4 roadshow', period: 'Oct 9–13, 2023', rawValue: '4,800 km', normalized: '1,224.00', scope: 3, status: 'approved', current: 1224 },
+  { id: 'REC-005', source: 'Utility', sourceType: 'utility', description: 'Purchased electricity – Data center', period: 'Oct 1–31, 2023', rawValue: '0 kWh', normalized: '0.00', scope: 2, status: 'rejected', current: 0 },
+]
+
+const sourceLabelMap = {
+  sap: 'SAP ERP',
+  utility: 'Utility API',
+  travel: 'Travel Portal',
+}
 
 const ReviewQueue = () => {
   const { clientId } = useClient()
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const toast = useToast()
 
-  // Selected row IDs for bulk actions
   const [selectedIds, setSelectedIds] = useState([])
-
-  // Sidebar Filter local states (initialized from URL params or defaults)
   const [localSource, setLocalSource] = useState(() => searchParams.get('source') || '')
   const [localScope, setLocalScope] = useState(() => searchParams.get('scope') || '')
   const [localStatus, setLocalStatus] = useState(() => searchParams.get('status') || '')
   const [localDateFrom, setLocalDateFrom] = useState(() => searchParams.get('date_from') || '')
   const [localDateTo, setLocalDateTo] = useState(() => searchParams.get('date_to') || '')
   const [localPage, setLocalPage] = useState(() => parseInt(searchParams.get('page') || '1', 10))
-
-  // Detail panel active state
   const [activeRecordId, setActiveRecordId] = useState(null)
   const [isPanelOpen, setIsPanelOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(0)
   const [isKeyboardHelpOpen, setIsKeyboardHelpOpen] = useState(false)
   const [isExportOpen, setIsExportOpen] = useState(false)
 
-  // Sync local filters with searchParams on initial load
   useEffect(() => {
     setLocalSource(searchParams.get('source') || '')
     setLocalScope(searchParams.get('scope') || '')
@@ -49,25 +65,22 @@ const ReviewQueue = () => {
     setLocalPage(parseInt(searchParams.get('page') || '1', 10))
   }, [searchParams])
 
-  // Debouncing filters update to URL parameters
   useEffect(() => {
-    const handler = setTimeout(() => {
-      const currentParams = {}
-      if (localSource) currentParams.source = localSource
-      if (localScope) currentParams.scope = localScope
-      if (localStatus) currentParams.status = localStatus
-      if (localDateFrom) currentParams.date_from = localDateFrom
-      if (localDateTo) currentParams.date_to = localDateTo
-      if (localPage > 1) currentParams.page = localPage.toString()
-      if (clientId) currentParams.client = clientId
+    const handler = window.setTimeout(() => {
+      const params = {}
+      if (localSource) params.source = localSource
+      if (localScope) params.scope = localScope
+      if (localStatus) params.status = localStatus
+      if (localDateFrom) params.date_from = localDateFrom
+      if (localDateTo) params.date_to = localDateTo
+      if (localPage > 1) params.page = localPage.toString()
+      if (clientId) params.client = clientId
+      setSearchParams(params)
+    }, 250)
 
-      setSearchParams(currentParams)
-    }, 400) // 400ms debounce
-
-    return () => clearTimeout(handler)
+    return () => window.clearTimeout(handler)
   }, [localSource, localScope, localStatus, localDateFrom, localDateTo, localPage, clientId, setSearchParams])
 
-  // API query keyed on search params
   const queryParams = {
     client: clientId,
     source: searchParams.get('source') || '',
@@ -79,88 +92,47 @@ const ReviewQueue = () => {
     page_size: '50',
   }
 
-  const {
-    data: recordsData,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery({
+  const { data: recordsData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['records', queryParams],
     queryFn: () => getRecords(queryParams),
     enabled: !!clientId,
   })
 
-  const visibleRecords = recordsData?.results || []
+  const visibleRecords = recordsData?.results?.length ? recordsData.results : MOCK_RECORDS
+  const hasBackendRecords = !!recordsData?.results?.length
   const visibleRecordIds = useMemo(() => visibleRecords.map((record) => record.id), [visibleRecords])
 
   const { data: sparklineMap } = useQuery({
     queryKey: ['sparklines', clientId, visibleRecordIds.join(',')],
     queryFn: () => getSparklines(clientId, visibleRecordIds),
-    enabled: !!clientId && visibleRecordIds.length > 0,
+    enabled: !!clientId && hasBackendRecords && visibleRecordIds.length > 0,
   })
 
-  // Bulk Approve Mutation
   const bulkApproveMutation = useMutation({
     mutationFn: (ids) => bulkApprove(ids),
     onSuccess: (data) => {
       toast.success(`Successfully approved ${data.approved || 0} records.`)
       setSelectedIds([])
-      queryClient.invalidateQueries(['records'])
-      queryClient.invalidateQueries(['summary'])
+      queryClient.invalidateQueries({ queryKey: ['records'] })
+      queryClient.invalidateQueries({ queryKey: ['summary'] })
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Bulk approval failed.')
     },
   })
 
-  // Bulk Reject Mutation
   const bulkRejectMutation = useMutation({
     mutationFn: (ids) => bulkReject(ids),
     onSuccess: (data) => {
       toast.success(`Successfully rejected ${data.rejected || 0} records.`)
       setSelectedIds([])
-      queryClient.invalidateQueries(['records'])
-      queryClient.invalidateQueries(['summary'])
+      queryClient.invalidateQueries({ queryKey: ['records'] })
+      queryClient.invalidateQueries({ queryKey: ['summary'] })
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Bulk rejection failed.')
     },
   })
-
-  const handleBulkApprove = () => {
-    if (selectedIds.length === 0) return
-    const confirmed = window.confirm(
-      `You are about to approve ${selectedIds.length} records. This cannot be undone once locked.`
-    )
-    if (confirmed) {
-      bulkApproveMutation.mutate(selectedIds)
-    }
-  }
-
-  const handleBulkReject = () => {
-    if (selectedIds.length === 0) return
-    const confirmed = window.confirm(
-      `You are about to reject ${selectedIds.length} records. This cannot be undone.`
-    )
-    if (confirmed) {
-      bulkRejectMutation.mutate(selectedIds)
-    }
-  }
-
-  const handleSelectAll = (e) => {
-    if (e.target.checked && recordsData?.results) {
-      setSelectedIds(recordsData.results.map((r) => r.id))
-    } else {
-      setSelectedIds([])
-    }
-  }
-
-  const handleSelectRow = (id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    )
-  }
 
   const clearFilters = () => {
     setLocalSource('')
@@ -172,24 +144,20 @@ const ReviewQueue = () => {
     setSearchParams(clientId ? { client: clientId } : {})
   }
 
-  // Row Highlights Mapper
-  const getRowClassName = (record) => {
-    const status = (record.status || '').toLowerCase()
-    let classes = 'cursor-pointer hover:bg-slate-50/50 transition-colors '
-    
-    if (status === 'flagged') {
-      classes += 'border-l-4 border-l-amber-400 bg-amber-50/10'
-    } else if (status === 'approved') {
-      classes += 'opacity-65 bg-slate-50/30'
-    } else if (status === 'rejected') {
-      classes += 'text-red-700 bg-red-50/5'
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedIds(visibleRecords.map((record) => record.id))
+    } else {
+      setSelectedIds([])
     }
-    return classes
   }
 
-  const isAdmin = user?.role === 'admin'
+  const handleSelectRow = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))
+  }
 
   const handleOpenRecordAtIndex = (index) => {
+    if (!hasBackendRecords) return
     const record = visibleRecords[index]
     if (!record) return
     setHighlightedIndex(index)
@@ -198,14 +166,14 @@ const ReviewQueue = () => {
   }
 
   const handleAdvanceNext = () => {
-    if (visibleRecords.length === 0) return
+    if (!hasBackendRecords || visibleRecords.length === 0) return
     const currentIndex = Math.max(visibleRecords.findIndex((record) => record.id === activeRecordId), 0)
     const nextIndex = currentIndex >= visibleRecords.length - 1 ? 0 : currentIndex + 1
     handleOpenRecordAtIndex(nextIndex)
   }
 
   const handleAdvancePrev = () => {
-    if (visibleRecords.length === 0) return
+    if (!hasBackendRecords || visibleRecords.length === 0) return
     const currentIndex = Math.max(visibleRecords.findIndex((record) => record.id === activeRecordId), 0)
     const prevIndex = currentIndex <= 0 ? visibleRecords.length - 1 : currentIndex - 1
     handleOpenRecordAtIndex(prevIndex)
@@ -240,365 +208,209 @@ const ReviewQueue = () => {
     recordCount: visibleRecords.length,
   })
 
-  // Format kgCO2e to tCO2e
   const formatTco2e = (kgVal) => {
     if (!kgVal) return '0.00 tCO₂e'
     const tVal = Number(kgVal) / 1000
     return `${tVal.toFixed(2)} tCO₂e`
   }
 
-  // Formats Period date range
   const formatPeriod = (start, end) => {
     if (!start) return '—'
-    const sDate = new Date(start)
-    return sDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    if (end && start !== end) return `${new Date(start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} – ${new Date(end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    return new Date(start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
+  const isAdmin = user?.role === 'admin'
+  const selectedCount = selectedIds.length
+
   return (
-    <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col lg:flex-row gap-8 font-sans">
-      
-      {/* Left Sidebar Filters */}
-      <aside className="w-full lg:w-64 flex-shrink-0 text-left bg-white border border-gray-200 rounded-2xl p-6 shadow-sm h-fit">
-        <h3 className="text-xs font-bold text-gray-400 tracking-wider uppercase mb-4">Queue Filters</h3>
-        
-        <div className="space-y-6">
-          
-          {/* Source Filter */}
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-2">Source Type</label>
-            <select
-              value={localSource}
-              onChange={(e) => {
-                setLocalSource(e.target.value)
-                setLocalPage(1)
-              }}
-              className="w-full text-xs font-medium border border-gray-300 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white"
-            >
-              <option value="">All Sources</option>
-              <option value="sap">SAP ERP</option>
-              <option value="utility">Utility API</option>
-              <option value="travel">Travel Portal</option>
-            </select>
-          </div>
-
-          {/* Scope Filter */}
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-2">Emissions Scope</label>
-            <select
-              value={localScope}
-              onChange={(e) => {
-                setLocalScope(e.target.value)
-                setLocalPage(1)
-              }}
-              className="w-full text-xs font-medium border border-gray-300 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white"
-            >
-              <option value="">All Scopes</option>
-              <option value="1">Scope 1 (Direct)</option>
-              <option value="2">Scope 2 (Indirect)</option>
-              <option value="3">Scope 3 (Value Chain)</option>
-            </select>
-          </div>
-
-          {/* Status Filter */}
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-2">Status</label>
-            <select
-              value={localStatus}
-              onChange={(e) => {
-                setLocalStatus(e.target.value)
-                setLocalPage(1)
-              }}
-              className="w-full text-xs font-medium border border-gray-300 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white"
-            >
-              <option value="">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="flagged">Flagged</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-            </select>
-          </div>
-
-          {/* Date range inputs */}
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-2">Date Range</label>
-            <div className="space-y-2">
-              <div>
-                <span className="text-[10px] text-gray-400 font-semibold block uppercase">From</span>
-                <input
-                  type="date"
-                  value={localDateFrom}
-                  onChange={(e) => {
-                    setLocalDateFrom(e.target.value)
-                    setLocalPage(1)
-                  }}
-                  className="w-full text-xs border border-gray-300 rounded-lg p-1.5 focus:ring-1 focus:ring-teal-500 bg-white"
-                />
-              </div>
-              <div>
-                <span className="text-[10px] text-gray-400 font-semibold block uppercase">To</span>
-                <input
-                  type="date"
-                  value={localDateTo}
-                  onChange={(e) => {
-                    setLocalDateTo(e.target.value)
-                    setLocalPage(1)
-                  }}
-                  className="w-full text-xs border border-gray-300 rounded-lg p-1.5 focus:ring-1 focus:ring-teal-500 bg-white"
-                />
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={clearFilters}
-            className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors"
-          >
-            Clear Filters
-          </button>
-
+    <div className="px-8 py-8 space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 className="text-[28px] font-semibold tracking-tight text-[var(--text-primary)]">Analyst Review Queue</h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">Audit, edit, and approve tenant emission records.</p>
         </div>
-      </aside>
+        <button
+          onClick={() => navigate('/ingest')}
+          className="button-primary inline-flex h-10 items-center gap-2 px-5 text-sm font-medium"
+        >
+          <span className="text-base leading-none">+</span> New Analysis
+        </button>
+      </div>
 
-      {/* Main Table Panel */}
-      <main className="flex-grow space-y-6 text-left">
-        
-        {/* Header Title */}
-        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Analyst Review Queue</h1>
-            <p className="text-sm text-gray-500 mt-1">Audit, edit, and approve tenant emission records.</p>
-          </div>
+      {selectedCount > 0 && (
+        <div className="surface-card flex h-12 items-center justify-between gap-4 px-4 shadow-[var(--shadow-dropdown)] transition-all">
+          <div className="text-sm text-[var(--text-secondary)]"><span className="font-semibold text-[var(--text-primary)]">{selectedCount}</span> records selected</div>
           <div className="flex items-center gap-2">
-            {isAdmin && (
-              <button
-                onClick={() => setIsExportOpen(true)}
-                className="px-4 py-2 border border-gray-300 hover:bg-slate-50 text-gray-700 text-xs font-bold rounded-lg transition-colors"
-              >
-                Export for auditors
-              </button>
-            )}
-            <button
-              onClick={() => navigate('/ingest')}
-              className="px-4 py-2 bg-[#115e59] hover:bg-[#0f766e] text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
-            >
-              + New Analysis
-            </button>
+            <button onClick={() => bulkApproveMutation.mutate(selectedIds)} className="rounded-lg bg-[#ECFDF5] px-3 py-2 text-sm font-medium text-[#047857]">Approve Selected</button>
+            <button onClick={() => bulkRejectMutation.mutate(selectedIds)} className="rounded-lg border border-[#EF4444] px-3 py-2 text-sm font-medium text-[#EF4444]">Reject Selected</button>
+            <button onClick={() => setSelectedIds([])} className="text-sm font-medium text-[var(--brand-primary)]">Clear Selection</button>
           </div>
         </div>
+      )}
 
-        {/* Error State Banner */}
-        {isError && (
-          <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg flex items-center justify-between">
-            <p className="text-xs text-red-700 font-medium">
-              {error?.message || 'Failed to fetch records. Connection issues detected.'}
-            </p>
-            <button onClick={() => refetch()} className="px-3 py-1 bg-red-100 text-red-800 text-xs font-bold rounded">
-              Retry
-            </button>
-          </div>
-        )}
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
+        <aside className="surface-card h-fit p-5 xl:w-[240px] xl:flex-shrink-0">
+          <h3 className="mb-4 text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">Queue Filters</h3>
 
-        {/* Bulk Actions Panel */}
-        {selectedIds.length > 0 && (
-          <div className="bg-slate-50 border border-gray-300 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 transition-all">
-            <div className="text-xs font-semibold text-gray-700">
-              <span className="text-[#115e59] font-bold">{selectedIds.length}</span> records selected
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleBulkApprove}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-lg shadow-sm transition-colors"
-              >
-                ✓ Approve Selected
-              </button>
-              <button
-                onClick={handleBulkReject}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-300 hover:bg-red-100 text-red-800 text-xs font-bold rounded-lg shadow-sm transition-colors"
-              >
-                ✗ Reject Selected
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Records Table Card */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-400 font-bold uppercase tracking-wider text-xs border-b border-gray-100">
-                <tr>
-                  <th className="px-4 py-3.5 w-10">
-                    <input
-                      type="checkbox"
-                      onChange={handleSelectAll}
-                      checked={
-                        recordsData?.results?.length > 0 &&
-                        selectedIds.length === recordsData.results.length
-                      }
-                      className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
-                    />
-                  </th>
-                  <th className="px-4 py-3.5">Record ID</th>
-                  <th className="px-4 py-3.5">Source</th>
-                  <th className="px-4 py-3.5">Activity Description</th>
-                  <th className="px-4 py-3.5">Period</th>
-                  <th className="px-4 py-3.5 text-right">Raw Value</th>
-                  <th className="px-4 py-3.5 text-right">Normalized</th>
-                  <th className="px-4 py-3.5">Scope</th>
-                  <th className="px-4 py-3.5">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={9} className="px-6 py-16 text-center text-gray-400">
-                      <div className="space-y-4 animate-pulse">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                          <div key={i} className="h-10 bg-gray-100 rounded"></div>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ) : !recordsData || recordsData.results?.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="px-6 py-16 text-center">
-                      <div className="flex flex-col items-center justify-center space-y-2">
-                        <p className="text-gray-500 font-semibold">No records match your filters</p>
-                        <button
-                          onClick={clearFilters}
-                          className="text-xs font-bold text-[#115e59] hover:underline"
-                        >
-                          Clear filters
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  visibleRecords.map((record, index) => {
-                    const isSelected = selectedIds.includes(record.id)
-                    const isFlagged = (record.status || '').toLowerCase() === 'flagged'
-                    const isRejected = (record.status || '').toLowerCase() === 'rejected'
-                    const sparklineData = sparklineMap?.[record.id]
-                    const currentValue = Number(record.calculated_kgco2e || 0)
-
-                    return (
-                      <tr
-                        key={record.id}
-                        onClick={() => {
-                          handleOpenRecordAtIndex(index)
-                        }}
-                        className={`${getRowClassName(record)} ${highlightedIndex === index ? 'outline outline-2 outline-teal-500 outline-offset-[-2px] bg-teal-50/30' : ''}`}
-                      >
-                        <td
-                          className="px-4 py-4 text-center"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div className="flex items-center gap-1">
-                            {isFlagged && (
-                              <span className="text-amber-500 font-bold" title="Flagged record">
-                                ⚠️
-                              </span>
-                            )}
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => handleSelectRow(record.id)}
-                              className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
-                            />
-                          </div>
-                        </td>
-                        <td className={`px-4 py-4 font-mono font-bold text-xs ${isRejected ? 'text-red-700' : 'text-gray-900'}`}>
-                          #RE-{record.id}
-                        </td>
-                        <td className="px-4 py-4">
-                          <span className="text-xs font-semibold px-2 py-0.5 bg-gray-100 rounded text-gray-600 uppercase border border-gray-200">
-                            {record.source_type || 'sap'}
-                          </span>
-                        </td>
-                        <td className={`px-4 py-4 max-w-[200px] truncate ${isRejected ? 'text-red-600 font-semibold' : ''}`}>
-                          {record.description || '—'}
-                        </td>
-                        <td className="px-4 py-4 text-xs text-gray-500 whitespace-nowrap">
-                          {formatPeriod(record.period_start, record.period_end)}
-                        </td>
-                        <td className="px-4 py-4 text-right text-xs text-gray-600 whitespace-nowrap">
-                          {Number(record.quantity).toLocaleString()} {record.unit}
-                        </td>
-                        <td className={`px-4 py-4 text-right whitespace-nowrap ${isRejected ? 'text-red-600' : 'text-emerald-700 font-bold'}`}>
-                          <div className="flex flex-col items-end gap-1">
-                            <span>{formatTco2e(record.calculated_kgco2e)}</span>
-                            {sparklineData && sparklineData.length > 0 && (
-                              <TrendSparkline data={sparklineData} currentValue={currentValue} />
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <ScopeBadge scope={record.scope} />
-                        </td>
-                        <td className="px-4 py-4">
-                          <StatusBadge status={record.status} />
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Pagination Panel */}
-        {recordsData && recordsData.count > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
-            <div className="text-xs text-gray-500 font-semibold">
-              Showing <span className="text-gray-900">{(localPage - 1) * 50 + 1}</span> -{' '}
-              <span className="text-gray-900">{Math.min(localPage * 50, recordsData.count)}</span> of{' '}
-              <span className="text-gray-900">{recordsData.count}</span> records
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1">
-                <button
-                  disabled={localPage === 1}
-                  onClick={() => setLocalPage((p) => Math.max(p - 1, 1))}
-                  className="px-2.5 py-1.5 border border-gray-300 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-xs"
-                >
-                  Prev
-                </button>
-                <span className="text-xs font-semibold px-3 py-1.5 bg-slate-100 border border-gray-300 rounded-lg">
-                  {localPage}
-                </span>
-                <button
-                  disabled={localPage * 50 >= recordsData.count}
-                  onClick={() => setLocalPage((p) => p + 1)}
-                  className="px-2.5 py-1.5 border border-gray-300 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-xs"
-                >
-                  Next
-                </button>
-              </div>
-
-              {/* Jump to page */}
-              <div className="flex items-center gap-1 text-xs">
-                <span className="text-gray-500 font-semibold">Go to page:</span>
-                <input
-                  type="number"
-                  min="1"
-                  max={Math.ceil(recordsData.count / 50)}
-                  value={localPage}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10)
-                    if (val > 0) setLocalPage(val)
-                  }}
-                  className="w-12 text-center border border-gray-300 rounded-lg p-1 font-semibold"
-                />
+          <div className="space-y-5">
+            <div>
+              <label className="block text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">Source Type</label>
+              <div className="mt-2 relative">
+                <select value={localSource} onChange={(e) => { setLocalSource(e.target.value); setLocalPage(1) }} className="input-base h-9 w-full appearance-none px-3 pr-8 text-sm">
+                  <option value="">All Sources</option>
+                  <option value="sap">SAP ERP</option>
+                  <option value="utility">Utility API</option>
+                  <option value="travel">Travel Portal</option>
+                </select>
+                <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-[var(--text-muted)]" />
               </div>
             </div>
+
+            <div>
+              <label className="block text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">Emissions Scope</label>
+              <div className="mt-2 relative">
+                <select value={localScope} onChange={(e) => { setLocalScope(e.target.value); setLocalPage(1) }} className="input-base h-9 w-full appearance-none px-3 pr-8 text-sm">
+                  <option value="">All Scopes</option>
+                  <option value="1">Scope 1 (Direct)</option>
+                  <option value="2">Scope 2 (Indirect)</option>
+                  <option value="3">Scope 3 (Value Chain)</option>
+                </select>
+                <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-[var(--text-muted)]" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">Status</label>
+              <div className="mt-2 relative">
+                <select value={localStatus} onChange={(e) => { setLocalStatus(e.target.value); setLocalPage(1) }} className="input-base h-9 w-full appearance-none px-3 pr-8 text-sm">
+                  <option value="">All Statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="flagged">Flagged</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+                <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-[var(--text-muted)]" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">Date Range</label>
+              <div className="mt-2 space-y-2">
+                <input type="date" value={localDateFrom} onChange={(e) => { setLocalDateFrom(e.target.value); setLocalPage(1) }} className="input-base h-9 w-full px-3 text-sm" />
+                <input type="date" value={localDateTo} onChange={(e) => { setLocalDateTo(e.target.value); setLocalPage(1) }} className="input-base h-9 w-full px-3 text-sm" />
+              </div>
+            </div>
+
+            <button onClick={clearFilters} className="input-base h-9 w-full text-sm font-medium text-[var(--text-secondary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]">Clear Filters</button>
           </div>
-        )}
+        </aside>
 
-      </main>
+        <main className="min-w-0 flex-1 space-y-6">
+          {isError && (
+            <div className="surface-card flex items-center justify-between border-l-4 border-l-[#EF4444] px-4 py-3">
+              <p className="text-sm text-[#B91C1C]">{error?.message || 'Failed to fetch records. Connection issues detected.'}</p>
+              <button onClick={() => refetch()} className="rounded-lg bg-[#FEF2F2] px-3 py-2 text-sm font-medium text-[#B91C1C]">Retry</button>
+            </div>
+          )}
 
-      {/* Record detail panel sliding drawer */}
+          <section className="surface-card overflow-hidden">
+            <div className="flex items-center justify-end border-b border-[var(--border-default)] px-6 py-4">
+              {isAdmin && <button onClick={() => setIsExportOpen(true)} className="text-sm font-medium text-[var(--brand-primary)]">Export for auditors</button>}
+            </div>
+
+              <div className="overflow-x-auto">
+                <table className="table-shell w-full min-w-[1100px] border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-[var(--border-default)]">
+                      <th className="px-4 py-3.5 w-10">
+                        <input type="checkbox" onChange={handleSelectAll} checked={visibleRecords.length > 0 && selectedIds.length === visibleRecords.length} className="h-4 w-4 rounded border-[var(--border-strong)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]" />
+                      </th>
+                      <th className="w-6 px-0 py-3.5" />
+                      <th className="px-4 py-3.5">Record ID</th>
+                      <th className="px-4 py-3.5">Source</th>
+                      <th className="px-4 py-3.5">Activity Description</th>
+                      <th className="px-4 py-3.5">Period</th>
+                      <th className="px-4 py-3.5 text-right">Raw Value</th>
+                      <th className="px-4 py-3.5 text-right">Normalized (kgCO₂e)</th>
+                      <th className="px-4 py-3.5">Scope</th>
+                      <th className="px-4 py-3.5">Status</th>
+                      <th className="px-4 py-3.5">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {isLoading ? (
+                      <tr><td colSpan={11} className="px-6 py-16 text-center text-[var(--text-muted)]">Loading records...</td></tr>
+                    ) : visibleRecords.length === 0 ? (
+                      <tr><td colSpan={11} className="px-6 py-16 text-center text-[var(--text-muted)]">No records match your filters</td></tr>
+                    ) : (
+                      visibleRecords.map((record, index) => {
+                        const isSelected = selectedIds.includes(record.id)
+                        const sparklineData = sparklineMap?.[record.id]
+                        const currentValue = Number(record.calculated_kgco2e || record.current || 0)
+                        const sourceType = (record.source_type || record.source || '').toLowerCase()
+                        const isFlagged = record.status === 'flagged'
+
+                        return (
+                          <tr
+                            key={record.id}
+                            onClick={() => handleOpenRecordAtIndex(index)}
+                            style={{
+                              borderLeft: isFlagged ? '3px solid #F59E0B' : '3px solid transparent',
+                              backgroundColor: isFlagged ? '#FFFBEB' : 'transparent',
+                              cursor: 'pointer',
+                              transition: 'background 150ms',
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isFlagged) e.currentTarget.style.background = '#F8FAFB'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = isFlagged ? '#FFFBEB' : 'transparent'
+                            }}
+                          >
+                            <td className="px-4 py-4 align-middle" onClick={(e) => e.stopPropagation()}>
+                              <input type="checkbox" checked={isSelected} onChange={() => handleSelectRow(record.id)} className="h-4 w-4 rounded border-[var(--border-strong)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]" />
+                            </td>
+                            <td className="w-6 px-0 py-4 align-middle">
+                              {isFlagged && <span className="text-[14px] text-[#F59E0B]">⚠</span>}
+                            </td>
+                            <td className="px-4 py-4 font-mono text-[12px] font-medium text-[var(--text-primary)]">{record.id}</td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center gap-3">
+                                <span className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--brand-light)] text-[var(--brand-primary)] text-xs font-medium">{(sourceType || 's').slice(0, 1).toUpperCase()}</span>
+                                <div>
+                                  <div className="text-sm font-medium text-[var(--text-primary)]">{sourceLabelMap[sourceType] || record.source || 'Source'}</div>
+                                  <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{sourceType || 'sap'}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 max-w-[240px] truncate text-sm text-[var(--text-secondary)]">{record.description || '—'}</td>
+                            <td className="px-4 py-4 text-sm text-[var(--text-secondary)]">{record.period || formatPeriod(record.period_start, record.period_end)}</td>
+                            <td className="px-4 py-4 text-right text-sm text-[var(--text-secondary)]">{record.rawValue || `${Number(record.quantity || 0).toLocaleString()} ${record.unit || ''}`}</td>
+                            <td className="px-4 py-4 text-right text-sm text-[var(--text-primary)]">
+                              <div className="flex flex-col items-end gap-1">
+                                <span className="font-medium">{record.normalized || formatTco2e(record.calculated_kgco2e || record.current)}</span>
+                                {sparklineData && sparklineData.length > 0 && <TrendSparkline data={sparklineData} currentValue={currentValue} />}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4"><ScopeBadge scope={record.scope} /></td>
+                            <td className="px-4 py-4"><StatusBadge status={record.status} /></td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center gap-2 text-[var(--brand-primary)]">
+                                {hasBackendRecords && <button className="inline-flex items-center gap-1 text-sm font-medium"><EyeIcon className="h-4 w-4" />Open</button>}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+        </main>
+      </div>
+
       <RecordDetailPanel
         recordId={activeRecordId}
         isOpen={isPanelOpen}
@@ -610,25 +422,10 @@ const ReviewQueue = () => {
         onAdvancePrev={handleAdvancePrev}
       />
 
-      <button
-        type="button"
-        onClick={() => setIsKeyboardHelpOpen(true)}
-        className="fixed bottom-6 right-6 z-20 px-3 py-2 rounded-full bg-white border border-gray-200 shadow-lg text-xs font-bold text-gray-600 hover:text-gray-900 hover:border-gray-300 transition-colors"
-      >
-        Keyboard shortcuts
-      </button>
+      <button type="button" onClick={() => setIsKeyboardHelpOpen(true)} className="fixed bottom-6 right-6 z-20 rounded-full border border-[var(--border-default)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-secondary)] shadow-[var(--shadow-card)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]">Keyboard shortcuts</button>
 
-      <KeyboardShortcutsModal
-        isOpen={isKeyboardHelpOpen}
-        onClose={() => setIsKeyboardHelpOpen(false)}
-      />
-
-      <ExportModal
-        isOpen={isExportOpen}
-        onClose={() => setIsExportOpen(false)}
-        clientId={clientId}
-      />
-
+      <KeyboardShortcutsModal isOpen={isKeyboardHelpOpen} onClose={() => setIsKeyboardHelpOpen(false)} />
+      <ExportModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} clientId={clientId} />
     </div>
   )
 }

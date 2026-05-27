@@ -68,6 +68,45 @@ def ingest_source(*, client, source_type: str, uploaded_by, file_obj, existing_j
         job.error_log = errors
         job.save(update_fields=["file_hash", "force_reason", "raw_file_preview", "error_log"])
 
+    if source_type == ImportJob.SourceType.TRAVEL and not parsed_records:
+        errors = [
+            *errors,
+            {
+                "error": "Parser produced 0 records. Check segment type casing and emission factor coverage.",
+            },
+        ]
+        job.error_log = errors
+        job.status = ImportJob.Status.FAILED
+        job.save(update_fields=["error_log", "status"])
+
+    if not parsed_records:
+        failed_rows = []
+        for error in errors:
+            failed_rows.append(
+                RawRecord(
+                    import_job=job,
+                    client=client,
+                    source_type=source_type,
+                    row_index=error.get("row", 0),
+                    raw_data={"row": error.get("row", 0), "source_type": source_type},
+                    conversion_log=[],
+                    parse_status=RawRecord.ParseStatus.FAILED,
+                    parse_error=error.get("error_message", error.get("error", "Parsing failed")),
+                )
+            )
+        if failed_rows:
+            RawRecord.objects.bulk_create(failed_rows)
+
+        job.total_records = len(errors)
+        job.successful_records = 0
+        job.failed_records = len(errors)
+        if source_type != ImportJob.SourceType.TRAVEL:
+            job.status = ImportJob.Status.FAILED if errors else ImportJob.Status.COMPLETED
+        job.save(update_fields=["total_records", "successful_records", "failed_records", "status"])
+        job.compute_quality_score()
+        job.save(update_fields=["quality_score"])
+        return job, job.total_records, job.successful_records, job.failed_records
+
     raw_records = []
     for parsed in parsed_records:
         raw_records.append(

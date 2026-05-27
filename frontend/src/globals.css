@@ -1,27 +1,63 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --color-brand-50: #f0fdfa;
-  --color-brand-100: #ccfbf1;
-  --color-brand-200: #99f6e4;
-  --color-brand-300: #5eead4;
-  --color-brand-400: #2dd4bf;
-  --color-brand-500: #14b8a6;
-  --color-brand-600: #0d9488;
-  --color-brand-700: #0f766e;
-  --color-brand-800: #115e59;
-  --color-brand-900: #134e4a;
-  --color-brand-950: #042f2e;
-  --font-sans: 'Outfit', 'Inter', sans-serif;
+  --font-sans: 'Inter', sans-serif;
+}
+
+:root {
+  --brand-primary: #0D6E6E;
+  --brand-secondary: #0F9484;
+  --brand-light: #E6F4F4;
+  --surface-primary: #FFFFFF;
+  --surface-secondary: #F8FAFB;
+  --surface-tertiary: #F1F5F9;
+  --border-default: #E5E7EB;
+  --border-strong: #D1D5DB;
+  --text-primary: #0A1628;
+  --text-secondary: #374151;
+  --text-muted: #9CA3AF;
+  --status-pending: #F59E0B;
+  --status-flagged: #EF4444;
+  --status-approved: #10B981;
+  --status-rejected: #6B7280;
+  --scope-1: #0D6E6E;
+  --scope-2: #2563EB;
+  --scope-3: #7C3AED;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,0.10);
+  --shadow-modal: 0 20px 60px rgba(0,0,0,0.15);
+}
+
+html {
+  background: var(--surface-secondary);
 }
 
 body {
-  font-family: 'Outfit', 'Inter', sans-serif;
+  font-family: 'Inter', sans-serif;
   margin: 0;
   padding: 0;
-  background-color: #f9fafb; /* Premium off-white matching Breathe ESG dashboard background */
-  color: #111827;
+  background-color: var(--surface-secondary);
+  color: var(--text-secondary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: var(--brand-light);
+  color: var(--text-primary);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 /* Custom smooth scrollbar for premium aesthetic */
@@ -53,4 +89,102 @@ body {
 
 .animate-slide-in {
   animation: slide-in 0.2s ease-out forwards;
+}
+
+@keyframes toast-exit {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+.animate-toast-exit {
+  animation: toast-exit 0.18s ease-in forwards;
+}
+
+@keyframes pulse-border {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.animate-pulse-border {
+  animation: pulse-border 1.2s ease-in-out infinite;
+}
+
+.nprogress-bar {
+  background: var(--brand-primary) !important;
+  height: 2px !important;
+}
+
+.nprogress-spinner {
+  display: none !important;
+}
+
+.app-shell {
+  min-height: 100vh;
+  background: var(--surface-secondary);
+  color: var(--text-secondary);
+}
+
+.surface-card {
+  background: var(--surface-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+}
+
+.surface-card-strong {
+  background: var(--surface-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+}
+
+.button-primary {
+  background: var(--brand-primary);
+  color: #fff;
+  border-radius: 8px;
+  box-shadow: var(--shadow-card);
+}
+
+.button-primary:hover {
+  background: var(--brand-secondary);
+}
+
+.input-base {
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text-primary);
+}
+
+.input-base:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px rgba(13, 110, 110, 0.12);
+}
+
+.table-shell thead th {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.table-shell tbody tr:hover {
+  background: var(--surface-secondary);
+}
+
+.pill {
+  border-radius: 9999px;
 }

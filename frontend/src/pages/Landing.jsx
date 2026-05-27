@@ -1,12 +1,21 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 const Landing = () => {
+  const [isScrolled, setIsScrolled] = useState(false)
+
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 10)
+    handleScroll()
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       
       {/* Navigation */}
-      <nav className="w-full bg-white border-b border-gray-200 sticky top-0 z-50">
+      <nav className={`w-full bg-white sticky top-0 z-50 transition-all ${isScrolled ? 'border-b border-[#E5E7EB] shadow-[0_1px_0_rgba(0,0,0,0.03)]' : 'border-b border-transparent'}`}>
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-2xl font-bold text-[#115e59] tracking-tight">Veridian</span>
@@ -73,7 +82,7 @@ const Landing = () => {
 
           {/* Hero Visual Mockup */}
           <div className="lg:col-span-6 flex justify-center">
-            <div className="relative w-full max-w-lg bg-gradient-to-tr from-teal-50 to-slate-100 rounded-3xl p-6 shadow-2xl border border-gray-100 animate-pulse-slow">
+            <div className="relative w-full max-w-lg bg-gradient-to-tr from-teal-50 to-slate-100 rounded-3xl p-6 shadow-2xl border border-gray-100 animate-pulse-slow transition-transform duration-300 hover:-translate-y-1">
               <div className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
                 {/* Header bar */}
                 <div className="h-10 bg-slate-50 border-b border-slate-200 flex items-center px-4 gap-1.5">
@@ -120,6 +129,9 @@ const Landing = () => {
                     <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                       <div className="bg-purple-600 h-full rounded-full" style={{ width: '30%' }}></div>
                     </div>
+                    <div className="pt-2 text-[11px] font-medium text-emerald-600 flex items-center gap-1">
+                      YoY Change <span className="text-emerald-500">▼ 8.3%</span> <span className="text-gray-400">vs 2022</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -157,7 +169,7 @@ const Landing = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Feature 1 */}
-            <div className="p-8 bg-slate-50 rounded-2xl border border-gray-200 text-left hover:shadow-md transition-all group">
+            <div className="p-8 bg-slate-50 rounded-2xl border border-gray-200 text-left hover:shadow-md transition-all group hover:border-t-2 hover:border-t-teal-500">
               <div className="w-12 h-12 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-600 mb-6 group-hover:scale-110 transition-transform">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -173,7 +185,7 @@ const Landing = () => {
             </div>
 
             {/* Feature 2 */}
-            <div className="p-8 bg-slate-50 rounded-2xl border border-gray-200 text-left hover:shadow-md transition-all group">
+            <div className="p-8 bg-slate-50 rounded-2xl border border-gray-200 text-left hover:shadow-md transition-all group hover:border-t-2 hover:border-t-amber-500">
               <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 mb-6 group-hover:scale-110 transition-transform">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -189,7 +201,7 @@ const Landing = () => {
             </div>
 
             {/* Feature 3 */}
-            <div className="p-8 bg-slate-50 rounded-2xl border border-gray-200 text-left hover:shadow-md transition-all group">
+            <div className="p-8 bg-slate-50 rounded-2xl border border-gray-200 text-left hover:shadow-md transition-all group hover:border-t-2 hover:border-t-blue-500">
               <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 mb-6 group-hover:scale-110 transition-transform">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -271,7 +283,7 @@ const Landing = () => {
                       <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-100 font-semibold text-[10px]">Approved</span>
                     </td>
                   </tr>
-                  <tr className="bg-amber-50/20 border-l-2 border-amber-400">
+                  <tr className="bg-amber-50/20 border-l-2 border-amber-400 animate-pulse-border">
                     <td className="px-6 py-4 font-semibold">APAC Data Center</td>
                     <td className="px-6 py-4 text-slate-500">Utility Bill</td>
                     <td className="px-6 py-4">Purchased Elec.</td>
@@ -308,7 +320,7 @@ const Landing = () => {
 
       {/* CTA Footer Banner */}
       <section className="bg-white py-20 px-6">
-        <div className="max-w-5xl mx-auto bg-gradient-to-r from-[#115e59] to-[#0d9488] rounded-3xl p-12 text-center relative overflow-hidden shadow-xl">
+        <div className="max-w-5xl mx-auto bg-[#0D6E6E] rounded-3xl p-12 text-center relative overflow-hidden shadow-xl">
           <div className="relative z-10 max-w-2xl mx-auto flex flex-col items-center">
             <h2 className="text-3xl font-extrabold text-white tracking-tight mb-4">
               Ready to simplify your sustainability reporting?
@@ -341,7 +353,7 @@ const Landing = () => {
       </section>
 
       {/* Footer */}
-      <footer className="bg-slate-900 text-slate-400 py-16 px-6">
+      <footer className="bg-slate-900 text-slate-400 py-16 px-6 border-t border-[#1D3A3A]">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
           
           <div className="flex flex-col gap-4 text-left">

@@ -6,7 +6,10 @@ export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([])
 
   const removeToast = useCallback((id) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id))
+    setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, exiting: true } : t)))
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id))
+    }, 180)
   }, [])
 
   const addToast = useCallback((message, type = 'success') => {
@@ -70,9 +73,7 @@ export const ToastProvider = ({ children }) => {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`flex items-start gap-3 p-4 rounded-lg border shadow-lg pointer-events-auto animate-slide-in transform transition-all duration-300 ${getToastClasses(
-              t.type
-            )}`}
+            className={`flex items-start gap-3 rounded-lg border p-4 shadow-lg pointer-events-auto ${t.exiting ? 'animate-toast-exit' : 'animate-slide-in'} ${getToastClasses(t.type)}`}
           >
             <div className="flex-shrink-0 mt-0.5">{getToastIcon(t.type)}</div>
             <div className="flex-grow">

@@ -56,30 +56,30 @@ const ImportSourceIcon = ({ source, showLabel = true }) => {
 
   const configMap = {
     sap: {
-      icon: <DocumentIcon className="w-4 h-4 text-emerald-600" />,
+      icon: <DocumentIcon className="w-4 h-4 text-[var(--scope-1)]" />,
       label: 'SAP ERP',
-      bg: 'bg-emerald-50',
-      border: 'border-emerald-100',
+      bg: 'bg-[var(--brand-light)]',
+      border: 'border-[rgba(13,110,110,0.16)]',
     },
     utility: {
-      icon: <BoltIcon className="w-4 h-4 text-blue-600" />,
+      icon: <BoltIcon className="w-4 h-4 text-[var(--scope-2)]" />,
       label: 'Utility API',
-      bg: 'bg-blue-50',
-      border: 'border-blue-100',
+      bg: 'bg-[#EFF6FF]',
+      border: 'border-[rgba(37,99,235,0.16)]',
     },
     travel: {
-      icon: <PaperAirplaneIcon className="w-4 h-4 text-indigo-600" />,
+      icon: <PaperAirplaneIcon className="w-4 h-4 text-[var(--scope-3)]" />,
       label: 'Travel Portal',
-      bg: 'bg-indigo-50',
-      border: 'border-indigo-100',
+      bg: 'bg-[#F5F3FF]',
+      border: 'border-[rgba(124,58,237,0.16)]',
     },
   }
 
   const current = configMap[normalizedSource] || {
-    icon: <DocumentIcon className="w-4 h-4 text-gray-500" />,
+    icon: <DocumentIcon className="w-4 h-4 text-[var(--text-muted)]" />,
     label: source || 'Manual Upload',
-    bg: 'bg-gray-50',
-    border: 'border-gray-100',
+    bg: 'bg-[var(--surface-secondary)]',
+    border: 'border-[var(--border-default)]',
   }
 
   if (!showLabel) {
@@ -87,9 +87,9 @@ const ImportSourceIcon = ({ source, showLabel = true }) => {
   }
 
   return (
-    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border ${current.bg} ${current.border}`}>
+    <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${current.bg} ${current.border}`}>
       {current.icon}
-      <span className="text-xs font-medium text-gray-700">{current.label}</span>
+      <span className="text-xs font-medium text-[var(--text-secondary)]">{current.label}</span>
     </div>
   )
 }

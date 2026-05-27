@@ -12,8 +12,8 @@ import {
 
 const SCOPE_COLORS = {
   scope1: '#0D6E6E',
-  scope2: '#185FA5',
-  scope3: '#534AB7',
+  scope2: '#2563EB',
+  scope3: '#7C3AED',
 }
 
 const SCOPE_LABELS = {
@@ -42,8 +42,8 @@ const CustomTooltip = ({ active, payload, label }) => {
   const total = payload.reduce((sum, entry) => sum + (entry.value || 0), 0)
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-4 text-xs font-sans">
-      <p className="font-bold text-gray-900 mb-2">{formatMonthLabel(label)}</p>
+    <div className="rounded-xl border border-[var(--border-default)] bg-white p-4 text-xs shadow-[var(--shadow-dropdown)]">
+      <p className="mb-2 font-medium text-[var(--text-primary)]">{formatMonthLabel(label)}</p>
       {payload.map((entry) => (
         <div key={entry.dataKey} className="flex items-center justify-between gap-6 py-0.5">
           <div className="flex items-center gap-2">
@@ -51,14 +51,14 @@ const CustomTooltip = ({ active, payload, label }) => {
               className="w-2.5 h-2.5 rounded-sm inline-block"
               style={{ backgroundColor: entry.color }}
             />
-            <span className="text-gray-600 font-medium">{SCOPE_LABELS[entry.dataKey]}</span>
+            <span className="font-medium text-[var(--text-secondary)]">{SCOPE_LABELS[entry.dataKey]}</span>
           </div>
-          <span className="font-bold text-gray-900">{Number(entry.value).toLocaleString()}</span>
+          <span className="font-medium text-[var(--text-primary)]">{Number(entry.value).toLocaleString()}</span>
         </div>
       ))}
-      <div className="border-t border-gray-100 mt-2 pt-2 flex justify-between">
-        <span className="font-bold text-gray-500">Total</span>
-        <span className="font-extrabold text-gray-900">{total.toLocaleString()}</span>
+      <div className="mt-2 flex justify-between border-t border-[var(--border-default)] pt-2">
+        <span className="font-medium text-[var(--text-muted)]">Total</span>
+        <span className="font-semibold text-[var(--text-primary)]">{total.toLocaleString()}</span>
       </div>
     </div>
   )
@@ -88,31 +88,26 @@ const ScopeBreakdownChart = ({ data, isLoading }) => {
 
   if (isLoading) {
     return (
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-4 animate-pulse">
-        <div className="h-5 w-52 bg-gray-200 rounded" />
-        <div className="h-[260px] bg-gray-100 rounded-xl" />
+      <div className="surface-card space-y-4 p-6 animate-pulse">
+        <div className="h-5 w-52 rounded bg-[var(--surface-tertiary)]" />
+        <div className="h-[220px] rounded-xl bg-[var(--surface-tertiary)]" />
         <div className="grid grid-cols-3 gap-4">
-          <div className="h-20 bg-gray-100 rounded-xl" />
-          <div className="h-20 bg-gray-100 rounded-xl" />
-          <div className="h-20 bg-gray-100 rounded-xl" />
+          <div className="h-20 rounded-xl bg-[var(--surface-tertiary)]" />
+          <div className="h-20 rounded-xl bg-[var(--surface-tertiary)]" />
+          <div className="h-20 rounded-xl bg-[var(--surface-tertiary)]" />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6">
+    <div className="surface-card space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-extrabold text-gray-900 tracking-tight">
-          Emissions by Scope
-        </h2>
-        <span className="text-[10px] font-bold text-gray-400 tracking-wider uppercase">
-          Last 6 months
-        </span>
+        <h2 className="text-[18px] font-semibold text-[var(--text-primary)]">Emissions by Scope</h2>
+        <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">Last 6 months</span>
       </div>
 
-      {/* Chart */}
-      <div style={{ width: '100%', height: 260 }}>
+      <div style={{ width: '100%', height: 220 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data || []}
@@ -121,21 +116,21 @@ const ScopeBreakdownChart = ({ data, isLoading }) => {
             <XAxis
               dataKey="month"
               tickFormatter={formatMonthLabel}
-              tick={{ fontSize: 11, fontWeight: 600, fill: '#9ca3af' }}
-              axisLine={{ stroke: '#e5e7eb' }}
+              tick={{ fontSize: 11, fontWeight: 500, fill: '#9CA3AF' }}
+              axisLine={{ stroke: '#E5E7EB' }}
               tickLine={false}
             />
             <YAxis
               tickFormatter={(v) => v.toLocaleString()}
-              tick={{ fontSize: 10, fontWeight: 600, fill: '#9ca3af' }}
-              axisLine={{ stroke: '#e5e7eb' }}
+              tick={{ fontSize: 10, fontWeight: 500, fill: '#9CA3AF' }}
+              axisLine={{ stroke: '#E5E7EB' }}
               tickLine={false}
               label={{
                 value: 'kgCO₂e',
                 angle: -90,
                 position: 'insideLeft',
                 offset: 10,
-                style: { fontSize: 10, fontWeight: 700, fill: '#9ca3af', textAnchor: 'middle' },
+                style: { fontSize: 10, fontWeight: 500, fill: '#9CA3AF', textAnchor: 'middle' },
               }}
               width={70}
             />
@@ -145,7 +140,7 @@ const ScopeBreakdownChart = ({ data, isLoading }) => {
               height={36}
               iconType="square"
               iconSize={10}
-              wrapperStyle={{ fontSize: 11, fontWeight: 600 }}
+              wrapperStyle={{ fontSize: 11, fontWeight: 500 }}
               formatter={(value) => SCOPE_LABELS[value] || value}
             />
             {['scope1', 'scope2', 'scope3'].map((key) => (
@@ -163,7 +158,6 @@ const ScopeBreakdownChart = ({ data, isLoading }) => {
         </ResponsiveContainer>
       </div>
 
-      {/* Scope Summary Cards */}
       <div className="grid grid-cols-3 gap-4">
         {[
           { key: 'scope1', label: 'Scope 1 — Direct', color: SCOPE_COLORS.scope1 },
@@ -172,26 +166,26 @@ const ScopeBreakdownChart = ({ data, isLoading }) => {
         ].map((s) => (
           <div
             key={s.key}
-            className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm"
-            style={{ borderLeftWidth: 4, borderLeftColor: s.color }}
+            className="rounded-xl border border-[var(--border-default)] bg-white p-4"
+            style={{ borderLeftWidth: 3, borderLeftColor: s.color }}
           >
-            <span className="text-[10px] font-bold text-gray-400 tracking-wider uppercase block">
+            <span className="block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
               {s.label}
             </span>
             <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-xl font-extrabold text-gray-900">
+              <span className="text-[24px] font-semibold text-[var(--text-primary)]">
                 {scopeTotals[s.key].toLocaleString()}
               </span>
-              <span className="text-[10px] font-bold text-gray-400">kgCO₂e</span>
+              <span className="text-[10px] font-medium text-[var(--text-muted)]">kgCO₂e</span>
             </div>
             <div className="mt-1">
               <span
-                className="text-xs font-bold"
+                className="text-xs font-medium"
                 style={{ color: s.color }}
               >
                 {getPercentage(scopeTotals[s.key])}%
               </span>
-              <span className="text-[10px] text-gray-400 ml-1">of total</span>
+              <span className="ml-1 text-[10px] text-[var(--text-muted)]">of total</span>
             </div>
           </div>
         ))}

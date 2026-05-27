@@ -1,88 +1,63 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getExportCount } from '../api/summary'
 import apiClient from '../api/client'
 import useToast from '../hooks/useToast'
+import { XMarkIcon, ArrowDownTrayIcon, InformationCircleIcon } from '@heroicons/react/24/outline'
 
 const ExportModal = ({ isOpen, onClose, clientId }) => {
   const toast = useToast()
-
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [format, setFormat] = useState('csv')
   const [scopes, setScopes] = useState({ 1: true, 2: true, 3: true })
   const [isExporting, setIsExporting] = useState(false)
-
-  // Debounced count query
-  const [debouncedFrom, setDebouncedFrom] = useState(dateFrom)
-  const [debouncedTo, setDebouncedTo] = useState(dateTo)
+  const [debouncedFrom, setDebouncedFrom] = useState('')
+  const [debouncedTo, setDebouncedTo] = useState('')
+  const [debouncedScopes, setDebouncedScopes] = useState('1,2,3')
 
   useEffect(() => {
-    const handler = setTimeout(() => {
+    const handler = window.setTimeout(() => {
       setDebouncedFrom(dateFrom)
       setDebouncedTo(dateTo)
-    }, 500)
-    return () => clearTimeout(handler)
-  }, [dateFrom, dateTo])
-
-  const selectedScopes = Object.entries(scopes)
-    .filter(([, v]) => v)
-    .map(([k]) => k)
-    .join(',')
+      setDebouncedScopes(Object.entries(scopes).filter(([, value]) => value).map(([key]) => key).join(','))
+    }, 400)
+    return () => window.clearTimeout(handler)
+  }, [dateFrom, dateTo, scopes])
 
   const {
     data: countData,
     isLoading: isLoadingCount,
+    refetch: refetchCount,
   } = useQuery({
-    queryKey: ['export-count', clientId, debouncedFrom, debouncedTo, selectedScopes],
-    queryFn: () =>
-      getExportCount({
-        client: clientId,
-        from: debouncedFrom,
-        to: debouncedTo,
-        scopes: selectedScopes,
-      }),
+    queryKey: ['export-count', clientId, debouncedFrom, debouncedTo, debouncedScopes],
+    queryFn: () => getExportCount({ client: clientId, from: debouncedFrom, to: debouncedTo, scopes: debouncedScopes }),
     enabled: isOpen && !!clientId && !!debouncedFrom && !!debouncedTo,
   })
 
-  const recordCount = countData?.count ?? null
+  const recordCount = countData?.count ?? 0
 
   const handleScopeToggle = (scopeNum) => {
     setScopes((prev) => ({ ...prev, [scopeNum]: !prev[scopeNum] }))
   }
 
   const handleExport = async () => {
-    if (!dateFrom || !dateTo) return
-
+    if (!dateFrom || !dateTo || recordCount === 0) return
     setIsExporting(true)
     try {
-      const params = new URLSearchParams({
-        client: clientId,
-        from: dateFrom,
-        to: dateTo,
-        format,
-        scopes: selectedScopes,
-      })
-
-      const response = await apiClient.get(`/api/export/?${params.toString()}`, {
-        responseType: 'blob',
-      })
-
-      // Create download link
-      const blob = new Blob([response.data], {
-        type: format === 'csv' ? 'text/csv' : 'application/json',
-      })
+      const params = new URLSearchParams({ client: clientId, from: dateFrom, to: dateTo, format, scopes: debouncedScopes })
+      const response = await apiClient.get(`/api/export/?${params.toString()}`, { responseType: 'blob' })
+      const blob = new Blob([response.data], { type: format === 'csv' ? 'text/csv' : 'application/json' })
       const url = window.URL.createObjectURL(blob)
-      const fileName = `veridian-export-${dateFrom}-to-${dateTo}.${format}`
       const link = document.createElement('a')
+      const fileName = `veridian-export-${dateFrom}-to-${dateTo}.${format}`
       link.href = url
       link.download = fileName
       document.body.appendChild(link)
       link.click()
-      document.body.removeChild(link)
+      link.remove()
       window.URL.revokeObjectURL(url)
-
-      toast.success(`Export complete: ${fileName}`)
+      toast.success(`Export prepared: ${fileName}`)
       onClose()
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Export failed. Please try again.')
@@ -91,149 +66,95 @@ const ExportModal = ({ isOpen, onClose, clientId }) => {
     }
   }
 
+  const previewMessage = useMemo(() => {
+    if (!dateFrom || !dateTo) return 'Select a date range to preview'
+    if (isLoadingCount) return 'Counting locked records...'
+    if (recordCount === 0) return 'No locked records in this range.'
+    return `Estimated ${recordCount.toLocaleString()} locked records in this range`
+  }, [dateFrom, dateTo, isLoadingCount, recordCount])
+
   if (!isOpen) return null
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-slate-900/50 z-[60] transition-opacity"
-        onClick={onClose}
-      />
-
-      {/* Modal */}
+      <div className="fixed inset-0 z-[60] bg-black/40" onClick={onClose} />
       <div className="fixed inset-0 z-[61] flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-lg w-full overflow-hidden font-sans animate-slide-in">
-          {/* Header */}
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="surface-card w-full max-w-[480px] overflow-hidden p-0">
+          <div className="flex items-start justify-between border-b border-[var(--border-default)] px-6 py-5">
             <div>
-              <h2 className="text-sm font-extrabold text-gray-900">Export for Auditors</h2>
-              <p className="text-[10px] text-gray-400 font-medium mt-0.5">Generate audit-ready emission data exports</p>
+              <h2 className="text-[18px] font-semibold text-[var(--text-primary)]">Export Audit Report</h2>
+              <p className="mt-1 text-[13px] text-[var(--text-muted)]">Generate audit-ready emission data exports</p>
             </div>
-            <button
-              onClick={onClose}
-              className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-slate-100"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+            <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-secondary)]">
+              <XMarkIcon className="h-4 w-4" />
             </button>
           </div>
 
-          {/* Body */}
-          <div className="px-6 py-5 space-y-5">
-            {/* Date Range */}
+          <div className="space-y-5 px-6 py-6">
             <div>
-              <label className="block text-[10px] font-bold text-gray-500 tracking-wider uppercase mb-2">
-                Date Range
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <span className="text-[10px] text-gray-400 font-semibold block uppercase mb-1">From</span>
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    className="w-full text-xs border border-gray-300 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white"
-                  />
-                </div>
-                <div>
-                  <span className="text-[10px] text-gray-400 font-semibold block uppercase mb-1">To</span>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    className="w-full text-xs border border-gray-300 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 bg-white"
-                  />
-                </div>
+              <label className="block text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">Date Range</label>
+              <div className="mt-2 grid grid-cols-2 gap-3">
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="input-base h-10 px-3 text-sm" />
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="input-base h-10 px-3 text-sm" />
               </div>
             </div>
 
-            {/* Format */}
             <div>
-              <label className="block text-[10px] font-bold text-gray-500 tracking-wider uppercase mb-2">
-                Format
-              </label>
-              <div className="flex gap-4">
-                {[
-                  { value: 'csv', label: 'CSV' },
-                  { value: 'json', label: 'JSON' },
-                ].map((opt) => (
-                  <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="format"
-                      value={opt.value}
-                      checked={format === opt.value}
-                      onChange={() => setFormat(opt.value)}
-                      className="text-teal-600 focus:ring-teal-500"
-                    />
-                    <span className="text-xs font-semibold text-gray-700">{opt.label}</span>
+              <label className="block text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">Format</label>
+              <div className="mt-2 inline-flex rounded-xl border border-[var(--border-default)] bg-[var(--surface-secondary)] p-1">
+                {['csv', 'json'].map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setFormat(option)}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${format === option ? 'bg-white text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)]'}`}
+                  >
+                    {option.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">Scope</label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[1, 2, 3].map((scopeNum) => (
+                  <label key={scopeNum} className="flex cursor-pointer items-center gap-2 rounded-full border border-[var(--border-default)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+                    <input type="checkbox" checked={scopes[scopeNum]} onChange={() => handleScopeToggle(scopeNum)} className="h-4 w-4 rounded border-[var(--border-strong)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]" />
+                    Scope {scopeNum}
                   </label>
                 ))}
               </div>
             </div>
 
-            {/* Scope Filter */}
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 tracking-wider uppercase mb-2">
-                Scope Filter
-              </label>
-              <div className="flex gap-4">
-                {[1, 2, 3].map((s) => (
-                  <label key={s} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={scopes[s]}
-                      onChange={() => handleScopeToggle(s)}
-                      className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
-                    />
-                    <span className="text-xs font-semibold text-gray-700">Scope {s}</span>
-                  </label>
-                ))}
+            <div className="rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1D4ED8]">
+              <div className="flex items-start gap-2">
+                <InformationCircleIcon className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                <div>{previewMessage}</div>
               </div>
             </div>
 
-            {/* Preview Count */}
-            <div className="bg-slate-50 border border-gray-200 rounded-xl p-3 text-center">
-              {!dateFrom || !dateTo ? (
-                <span className="text-xs text-gray-400 font-medium">Select a date range to preview</span>
-              ) : isLoadingCount ? (
-                <span className="text-xs text-gray-400 font-medium animate-pulse">Counting records...</span>
-              ) : recordCount === 0 ? (
-                <span className="text-xs text-amber-600 font-semibold">No locked records in this date range.</span>
-              ) : (
-                <span className="text-xs text-gray-700 font-medium">
-                  Estimated <span className="font-bold text-[#115e59]">{recordCount?.toLocaleString()}</span> locked records in this range
-                </span>
-              )}
-            </div>
+            {recordCount === 0 && dateFrom && dateTo && (
+              <div className="text-sm text-[#B91C1C]">No locked records in this range.</div>
+            )}
           </div>
 
-          {/* Footer */}
-          <div className="px-6 py-4 border-t border-gray-100 bg-slate-50/50 flex items-center justify-end gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 hover:bg-slate-50 text-gray-700 text-xs font-bold rounded-lg transition-colors"
-            >
-              Cancel
-            </button>
+          <div className="flex items-center justify-end gap-3 border-t border-[var(--border-default)] bg-[var(--surface-secondary)] px-6 py-4">
+            <button onClick={onClose} className="rounded-lg border border-[var(--border-default)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)]">Cancel</button>
             <button
               onClick={handleExport}
               disabled={!dateFrom || !dateTo || recordCount === 0 || isExporting}
-              className="px-4 py-2 bg-[#115e59] hover:bg-[#0f766e] text-white text-xs font-bold rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="button-primary inline-flex h-10 items-center gap-2 px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isExporting ? (
                 <>
-                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Exporting...
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Preparing export...
                 </>
               ) : (
                 <>
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Export
+                  <ArrowDownTrayIcon className="h-4 w-4" />
+                  Download Report
                 </>
               )}
             </button>

@@ -34,7 +34,9 @@ class TravelParser:
         trips = payload.get("trips", []) if isinstance(payload, dict) else []
         for trip_index, trip in enumerate(trips, start=1):
             try:
-                records.extend(self._parse_trip(trip, trip_index))
+                trip_records, trip_errors = self._parse_trip(trip, trip_index)
+                records.extend(trip_records)
+                errors.extend(trip_errors)
             except Exception as exc:
                 errors.append({"row": trip_index, "error_message": str(exc)})
         return records, errors
@@ -51,25 +53,34 @@ class TravelParser:
             return json.loads(content)
         return json.loads(Path(source).read_text(encoding="utf-8"))
 
-    def _parse_trip(self, trip: dict, trip_index: int) -> list[dict]:
+    def _parse_trip(self, trip: dict, trip_index: int) -> tuple[list[dict], list[dict]]:
         segments = trip.get("segments", [])
         trip_id = trip.get("tripId", f"TRIP-{trip_index}")
         traveler = trip.get("traveler", {})
         cost_center = traveler.get("costCenter", "")
         records: list[dict] = []
+        errors: list[dict] = []
         for segment_index, segment in enumerate(segments, start=1):
-            segment_type = (segment.get("segmentType") or "").strip().lower()
-            if segment_type == "air":
-                records.append(self._parse_air_segment(segment, trip_id, cost_center, segment_index))
-            elif segment_type == "hotel":
-                records.append(self._parse_hotel_segment(segment, trip_id, cost_center, segment_index))
-            elif segment_type == "car":
-                records.append(self._parse_car_segment(segment, trip_id, cost_center, segment_index))
-            elif segment_type == "rail":
-                records.append(self._parse_rail_segment(segment, trip_id, cost_center, segment_index))
-            else:
-                raise ValueError(f"Unsupported travel segment type: {segment_type or 'unknown'}")
-        return records
+            try:
+                seg_type = (segment.get("segmentType") or "").strip().upper()
+                if seg_type == "AIR":
+                    records.append(self._parse_air_segment(segment, trip_id, cost_center, segment_index))
+                elif seg_type == "HOTEL":
+                    records.append(self._parse_hotel_segment(segment, trip_id, cost_center, segment_index))
+                elif seg_type == "CAR":
+                    records.append(self._parse_car_segment(segment, trip_id, cost_center, segment_index))
+                elif seg_type == "RAIL":
+                    records.append(self._parse_rail_segment(segment, trip_id, cost_center, segment_index))
+                else:
+                    raise ValueError(f"Unsupported travel segment type: {seg_type or 'unknown'}")
+            except Exception as exc:
+                errors.append({
+                    "row": segment_index,
+                    "trip_id": trip_id,
+                    "segment_type": segment.get("segmentType", ""),
+                    "error_message": str(exc),
+                })
+        return records, errors
 
     def _parse_air_segment(self, segment: dict, trip_id: str, cost_center: str, segment_index: int) -> dict:
         departure = (segment.get("departureAirport") or "").upper()

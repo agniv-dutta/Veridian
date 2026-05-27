@@ -1,9 +1,11 @@
 import React, { createContext, useState, useEffect, useContext } from 'react'
 import apiClient from '../api/client'
+import { useAuth } from './AuthContext'
 
 const ClientContext = createContext(null)
 
 export const ClientProvider = ({ children }) => {
+  const { token } = useAuth()
   const [clientId, setClientIdState] = useState(() => {
     return localStorage.getItem('clientId') || ''
   })
@@ -28,10 +30,11 @@ export const ClientProvider = ({ children }) => {
     setIsLoadingClients(true)
     try {
       const response = await apiClient.get('/api/clients/')
-      setClientList(response.data)
+      const results = Array.isArray(response.data) ? response.data : response.data?.results || []
+      setClientList(results)
       // If we don't have a client selected, select the first one by default
-      if (!clientId && response.data.length > 0) {
-        setClientId(response.data[0].slug)
+      if (!clientId && results.length > 0) {
+        setClientId(results[0].slug)
       }
     } catch (error) {
       console.error('Failed to fetch clients', error)
@@ -43,7 +46,7 @@ export const ClientProvider = ({ children }) => {
   // Fetch client list when the component mounts or token changes
   useEffect(() => {
     fetchClients()
-  }, [])
+  }, [token])
 
   return (
     <ClientContext.Provider value={{ clientId, setClientId, clientList, isLoadingClients, refetchClients: fetchClients }}>

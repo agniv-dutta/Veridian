@@ -5,6 +5,7 @@ from apps.ingest.models import ImportJob, RawRecord
 
 class ImportJobSerializer(serializers.ModelSerializer):
     grade = serializers.SerializerMethodField()
+    uploaded_at = serializers.DateTimeField(format="%Y-%m-%dT%H:%M:%SZ", read_only=True)
 
     class Meta:
         model = ImportJob

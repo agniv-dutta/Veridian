@@ -39,7 +39,7 @@ export const AuthProvider = ({ children }) => {
           id: decoded.user_id,
           role: decoded.role,
           clientSlug: decoded.client_slug,
-          email: decoded.email || 'analyst@breatheesg.com',
+          email: decoded.email || '',
           name: decoded.username || 'Emissions Analyst',
         })
       }
@@ -50,9 +50,10 @@ export const AuthProvider = ({ children }) => {
   }, [token])
 
   const login = async (email, password) => {
+    const username = email.trim()
     try {
       const response = await apiClient.post('/api/auth/login/', {
-        username: email, // DRF SimpleJWT defaults to username for credentials mapping
+        username, // DRF SimpleJWT defaults to username for credentials mapping
         password,
       })
       const { access } = response.data
@@ -63,7 +64,7 @@ export const AuthProvider = ({ children }) => {
         id: decoded?.user_id,
         role: decoded?.role,
         clientSlug: decoded?.client_slug,
-        email: email,
+        email: username,
         name: decoded?.username || 'Emissions Analyst',
       }
       localStorage.setItem('user', JSON.stringify(userData))
@@ -78,9 +79,12 @@ export const AuthProvider = ({ children }) => {
       return { success: true }
     } catch (error) {
       console.error('Login failed', error)
+      const isNetworkError = !error.response
       return {
         success: false,
-        error: error.response?.data?.detail || 'Invalid email or password',
+        error: isNetworkError
+          ? 'Cannot reach backend API. Confirm backend is running on http://127.0.0.1:8000 and restart the frontend dev server.'
+          : error.response?.data?.detail || 'Invalid email or password',
       }
     }
   }
